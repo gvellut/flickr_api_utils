@@ -1,0 +1,6 @@
+api_key.json
+.flickr
+oauth-tokens.sqlite
+.vscode
+__pycache__
+.python-version
