@@ -1,0 +1,2 @@
+flickrapi~=2.4.0
+addict~=2.3.0

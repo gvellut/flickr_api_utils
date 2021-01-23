@@ -1,29 +1,8 @@
-import json
-from pathlib import Path
-import webbrowser
-
 from addict import Dict as Addict
-import flickrapi
 
-with open("api_key.json") as f:
-    flickr_key = Addict(json.load(f))
+from api_auth import auth_flickr
 
-api_key = flickr_key.key
-api_secret = flickr_key.secret
-
-
-flickr = flickrapi.FlickrAPI(
-    api_key,
-    api_secret,
-    format="parsed-json",
-    token_cache_location=Path("./.flickr").resolve(),
-)
-if not flickr.token_valid(perms="write"):
-    flickr.get_request_token(oauth_callback="oob")
-    authorize_url = flickr.auth_url(perms="write")
-    webbrowser.open_new_tab(authorize_url)
-    verifier = input("Verifier code: ")
-    flickr.get_access_token(verifier)
+flickr = auth_flickr()
 
 search_result = Addict(
     flickr.photos.search(
@@ -41,7 +20,7 @@ for photo in search_result.photos.photo:
     if "pont" not in photo.tags:
         info = Addict(flickr.photos.getInfo(photo_id=photo.id))
         for tag in info.photo.tags.tag:
-            if tag["raw"] == "aire-la-ville":
+            if tag["raw"] == "haute-savoie":
                 tag_id_to_remove = tag.id
                 resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
                 break
