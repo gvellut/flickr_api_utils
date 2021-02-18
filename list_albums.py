@@ -18,7 +18,7 @@ def _get_album_page(page, acc):
     for album in albums.photoset:
         date_create = int(album.date_create)
         dt_date_create = datetime.fromtimestamp(date_create, timezone.utc)
-        acc.append((album.title._content, dt_date_create))
+        acc.append((album.title._content, dt_date_create, album.id))
 
     if albums.page < albums.pages:
         return _get_album_page(page + 1, acc)
