@@ -4,7 +4,7 @@ from api_auth import auth_flickr
 
 flickr = auth_flickr()
 
-taken_date = "2020-04-15"
+taken_date = "2020-11-22"
 
 search_result = Addict(
     flickr.photos.search(
