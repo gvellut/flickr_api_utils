@@ -4,7 +4,7 @@ from api_auth import auth_flickr
 
 flickr = auth_flickr()
 
-taken_date = "2020-11-22"
+taken_date = "2020-12-23"
 
 search_result = Addict(
     flickr.photos.search(
@@ -14,6 +14,8 @@ search_result = Addict(
         per_page=5,
     )
 )
+
+print(f"Searching {taken_date}...")
 
 # TODO replace wiht walk https://stuvel.eu/flickrapi-doc/7-util.html
 for photo in search_result.photos.photo:
