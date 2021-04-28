@@ -4,3 +4,4 @@ oauth-tokens.sqlite
 .vscode
 __pycache__
 .python-version
+*original*.txt

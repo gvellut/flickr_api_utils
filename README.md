@@ -20,3 +20,8 @@ Needs a JSON file named `api_key.json` with a key and secret for the API:
 Find NSID By URL (for serching albums for example):
 
 https://www.flickr.com/services/api/flickr.urls.lookupUser.html
+
+
+## Python version
+
+Needs Python 3.6
