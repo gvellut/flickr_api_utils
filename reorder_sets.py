@@ -1,5 +1,4 @@
 from collections import defaultdict, namedtuple
-from datetime import datetime, timezone
 from operator import attrgetter
 import os.path
 
