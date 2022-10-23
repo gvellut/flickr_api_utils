@@ -5,3 +5,4 @@ oauth-tokens.sqlite
 __pycache__
 .python-version
 *original*.txt
+albums.json
