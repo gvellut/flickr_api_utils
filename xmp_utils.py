@@ -4,6 +4,7 @@ from PIL import Image
 
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 XAP_NS = "http://ns.adobe.com/xap/1.0/"
+XAPMM_NS = "http://ns.adobe.com/xap/1.0/mm/"
 DC_NS = "http://purl.org/dc/elements/1.1/"
 
 
@@ -47,3 +48,11 @@ def get_title(xmp_root):
         title = title[0].text
         return title
     return None
+
+
+# always there ? yes if from Adobe Bridge
+def get_document_id(xmp_root):
+    descs = xmp_root.findall(f".//{{{RDF_NS}}}Description")
+    desc = descs[0]
+    document_id = desc.attrib.get(f"{{{XAPMM_NS}}}DocumentID")
+    return document_id

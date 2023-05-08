@@ -60,6 +60,7 @@ for date_taken, file_path in photo_time_index.items():
     flickr_photo = flickr_time_index[date_taken]
     print(f"Replace {make_flickr_photo_url(flickr_photo, user.id)} with {file_path}...")
     result = flickr.replace(file_path, flickr_photo.id, format="rest")
+    # not parsed as JSON => bytes
     result = result.decode("utf-8", "ignore")
     if 'stat="ok"' not in result:
         # TODO or XML parse
