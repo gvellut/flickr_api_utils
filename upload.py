@@ -83,6 +83,14 @@ public_option = click.option(
 )
 
 
+yes_option = click.option(
+    "--yes",
+    "is_yes",
+    is_flag=True,
+    help="Do not ask for confirmation",
+)
+
+
 @click.group()
 def cli():
     pass
@@ -96,7 +104,8 @@ def cli():
 @create_album_option
 @album_name_option
 @album_description_option
-def complete(folder, filter_label, **kwargs):
+@yes_option
+def complete(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
@@ -106,6 +115,12 @@ def complete(folder, filter_label, **kwargs):
     files_to_upload = filtered(folder, filter_label)
 
     print(f"{len(files_to_upload)} files to upload")
+
+    if not is_yes:
+        if not click.confirm("The images will be uploaded. Confirm?"):
+            raise ConfirmationAbortedException()
+
+    # FIXME parallel uploads
     progress_bar = tqdm(files_to_upload)
     for filepath, xmp_root in progress_bar:
         upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root)
@@ -122,8 +137,8 @@ def complete(folder, filter_label, **kwargs):
     required=True,
     help="Album ID to upload to",
 )
-@click.option("--yes", "is_yes", is_flag=True, help="Do not ask for confirmation")
 @public_option
+@yes_option
 def diff(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
@@ -187,7 +202,7 @@ def upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root):
             filename=filepath,
             title=title,
             tags=flickr_tags,
-            is_public=upload_options.is_public,
+            is_public=int(upload_options.is_public),
             format="etree",
         )
         return resp
