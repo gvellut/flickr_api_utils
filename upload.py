@@ -3,6 +3,7 @@ import os
 from addict import Dict as Addict
 from attrs import define
 import click
+import piexif
 from tqdm import tqdm
 
 from api_auth import auth_flickr
@@ -110,7 +111,7 @@ def complete(folder, filter_label, is_yes, **kwargs):
 
     upload_options = UploadOptions(**kwargs)
 
-    # TODO use TUI library see jncep
+    # TODO use TUI library see jncep : rich or textual
     print("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
 
@@ -119,6 +120,8 @@ def complete(folder, filter_label, is_yes, **kwargs):
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
             raise ConfirmationAbortedException()
+
+    files_to_upload = order_by_date(files_to_upload)
 
     # FIXME parallel uploads
     progress_bar = tqdm(files_to_upload)
@@ -178,11 +181,25 @@ def diff(folder, filter_label, is_yes, **kwargs):
         if not click.confirm("The images will be uploaded. Confirm?"):
             raise ConfirmationAbortedException()
 
+    files_to_upload = order_by_date(files_to_upload)
+
     progress_bar = tqdm(files_to_upload)
     for did in progress_bar:
         filepath, xmp_root = file_index_by_did[did]
 
         upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root)
+
+
+def order_by_date(files_to_upload):
+    return sorted(files_to_upload, key=date_taken_key)
+
+
+def date_taken_key(x):
+    filepath, _ = x
+    exif_data = piexif.load(filepath)
+    dt_original = exif_data["Exif"][piexif.ExifIFD.DateTimeOriginal]
+    # should be string orderable
+    return dt_original.decode("ascii")
 
 
 def upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root):
