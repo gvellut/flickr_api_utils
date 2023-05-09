@@ -24,6 +24,10 @@ class ConfirmationAbortedException(Exception):
     pass
 
 
+class ValidationError(Exception):
+    pass
+
+
 @define
 class UploadOptions:
     is_public: bool = False
@@ -110,6 +114,9 @@ def complete(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+
+    if upload_options.is_create_album and not upload_options.album_name:
+        raise ValidationError("Album name is required for creation")
 
     # TODO use TUI library see jncep : rich or textual
     print("Getting files to upload ...")
@@ -275,23 +282,28 @@ def retry(num_retries, func, retry_callback):
 
 
 def add_to_album(flickr, progress_bar, upload_options, photo_id):
-    # do at the end : primary_photo_id is needed
+    # do after photo upload : primary_photo_id is needed
     album_id = upload_options.album_id
     if upload_options.is_create_album and not album_id:
         try:
             # create album using Flicker api
-            resp = flickr.photosets.create(
-                title=upload_options.album_name,
-                description=upload_options.album_description,
-                primary_photo_id=photo_id,
+            resp = Addict(
+                flickr.photosets.create(
+                    title=upload_options.album_name,
+                    description=upload_options.album_description,
+                    primary_photo_id=photo_id,
+                )
             )
             album_id = resp.photoset.id
+            upload_options.album_id = album_id
         except Exception as e:
             msg = f"Error creating album {upload_options.album_name}: {e}"
             progress_bar.write(msg)
-            return
 
-    # possible it was just created so no "else"
+        # if album created successfully : primary photo is added so no need to
+        # add it again ; else if error : no album_id anyway
+        return
+
     if album_id:
         try:
             # append to existing album
