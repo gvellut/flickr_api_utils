@@ -1,3 +1,4 @@
+import logging
 import os
 
 from addict import Dict as Addict
@@ -17,7 +18,10 @@ from xmp_utils import (
     parse_xmp,
 )
 
-retries = 3
+API_RETRIES = 3
+
+# sometimes output error page for 500 errors
+logging.getLogger("flickrapi").disabled = True
 
 
 class ConfirmationAbortedException(Exception):
@@ -237,7 +241,7 @@ def upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root):
         )
 
     try:
-        resp = retry(retries, upload, retry_callback)
+        resp = retry(API_RETRIES, upload, retry_callback)
         photo_id = resp.find("photoid").text
         add_to_album(flickr, progress_bar, upload_options, photo_id)
         progress_bar.set_description("Done")
@@ -249,14 +253,20 @@ def upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root):
 def filtered(folder, filter_label):
     files_to_upload = []
     for file_name in os.listdir(folder):
-        if not file_name.upper().endswith(".JPG"):
+        if not (
+            file_name.upper().endswith(".JPG") or file_name.upper().endswith(".PNG")
+        ):
             continue
 
-        file_path = os.path.join(folder, file_name)
-        xmp_bytes = extract_xmp(file_path)
-        xmp_root = parse_xmp(xmp_bytes)
-        if is_filtered(xmp_root, filter_label):
-            files_to_upload.append((file_path, xmp_root))
+        if filter_label:
+            file_path = os.path.join(folder, file_name)
+            xmp_bytes = extract_xmp(file_path)
+            xmp_root = parse_xmp(xmp_bytes)
+            if not is_filtered(xmp_root, filter_label):
+                continue
+
+        files_to_upload.append((file_path, xmp_root))
+
     return files_to_upload
 
 
@@ -319,7 +329,7 @@ def add_to_album(flickr, progress_bar, upload_options, photo_id):
             def retry_callback():
                 progress_bar.set_description(f"Retrying appending to album {album_id}")
 
-            retry(retries, func, retry_callback)
+            retry(API_RETRIES, func, retry_callback)
 
         except Exception as e:
             msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
