@@ -1,8 +1,8 @@
+from datetime import datetime
 from functools import partial
 import logging
 from multiprocessing import Pool
 import os
-import time
 
 from addict import Dict as Addict
 from attrs import define
@@ -146,7 +146,6 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
     if upload_options.is_create_album and not upload_options.album_name:
         raise ValidationError("Album name is required for creation")
 
-    # TODO use TUI library see jncep : rich or textual
     print("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
 
@@ -157,6 +156,13 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
             raise ConfirmationAbortedException()
 
     files_to_upload = order_by_date(files_to_upload)
+
+    photos_uploaded = _upload_photos(flickr, upload_options, files_to_upload, parallel)
+    _set_date_posted(flickr, photos_uploaded, parallel)
+    _add_to_album(flickr, upload_options, photos_uploaded, parallel)
+
+
+def _upload_photos(flickr, upload_options, files_to_upload, parallel):
     photos_uploaded = []
 
     progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload))
@@ -190,6 +196,10 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
     photos_uploaded = sorted(photos_uploaded, key=lambda x: x[0])
     photos_uploaded = [x[1] for x in photos_uploaded]
 
+    return photos_uploaded
+
+
+def _set_date_posted(flickr, photos_uploaded, parallel):
     # so the photos appear in order in the photostream
     print("Resetting upload dates...")
 
@@ -198,18 +208,33 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
     def _result_callback(result):
         progress_bar.update(1)
 
+    def _error_callback(ex):
+        msg = ex.args[0]
+        progress_bar.write(msg)
+
     now_ts = generate_timestamps(len(photos_uploaded))
     with Pool(parallel) as pool:
-        for photo_item in zip(photos_uploaded, now_ts):
+        for photo_id, timestamp in zip(photos_uploaded, now_ts):
             pool.apply_async(
-                set_date_taken,
-                (flickr, *photo_item),
+                partial(
+                    retry,
+                    API_RETRIES,
+                    partial(
+                        flickr.photos.setDates,
+                        photo_id=photo_id,
+                        date_posted=timestamp,
+                    ),
+                ),
+                callback=_result_callback,
+                error_callback=_error_callback,
             )
         pool.close()
         pool.join()
 
     progress_bar.close()
 
+
+def _add_to_album(flickr, upload_options, photos_uploaded, parallel):
     album_id = upload_options.album_id
     if upload_options.is_create_album and not album_id:
         print("Creating album...")
@@ -223,6 +248,10 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
 
         def _result_callback(result):
             progress_bar.update(1)
+
+        def _error_callback(ex):
+            msg = ex.args[0]
+            progress_bar.write(msg)
 
         with Pool(parallel) as pool:
             for photo_item in photos_uploaded:
@@ -269,7 +298,9 @@ def diff(folder, filter_label, is_yes, **kwargs):
     for image in progress_bar:
         # get exif info from flick
         try:
-            resp = Addict(retry(partial(flickr.photos.getExif, photo_id=image.id)))
+            resp = Addict(
+                retry(API_RETRIES, partial(flickr.photos.getExif, photo_id=image.id))
+            )
             for exif in resp.photo.exif:
                 if exif.tag == "DocumentID":
                     document_id = exif.raw._content
@@ -321,7 +352,9 @@ def date_taken_key(x):
 
 
 def generate_timestamps(num_photos):
-    now_ts = int(time.time()) - num_photos + 1
+    # should be fine if no multiple uploads at the same time
+    # photos take > 1 sec (unless parallel very high)
+    now_ts = int(datetime.now().timestamp()) - num_photos
     timestamps = [now_ts + i for i in range(num_photos)]
     return timestamps
 
@@ -392,16 +425,6 @@ def retry(num_retries, func, retry_callback=None):
                     retry_callback()
                 continue
             raise
-
-
-def set_date_taken(flickr, photo_id, timestamp):
-    def func():
-        return flickr.photos.setDates(
-            photo_id=photo_id,
-            date_taken=timestamp,
-        )
-
-    retry(API_RETRIES, func)
 
 
 def create_album(flickr, upload_options, primary_photo_id):
