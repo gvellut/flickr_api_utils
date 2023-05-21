@@ -1,3 +1,4 @@
+from functools import partial
 import logging
 from multiprocessing import Pool
 import os
@@ -115,6 +116,12 @@ yes_option = click.option(
     help="Do not ask for confirmation",
 )
 
+parallel_option = click.option(
+    "--parallel",
+    default=UPLOAD_CONCURRENCY,
+    help="Set number of parallel uploads + Flickr API calls",
+)
+
 
 @click.group()
 def cli():
@@ -129,8 +136,9 @@ def cli():
 @create_album_option
 @album_name_option
 @album_description_option
+@parallel_option
 @yes_option
-def complete(folder, filter_label, is_yes, **kwargs):
+def complete(folder, filter_label, is_yes, parallel, **kwargs):
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
@@ -161,7 +169,7 @@ def complete(folder, filter_label, is_yes, **kwargs):
         msg = ex.args[0]
         progress_bar.write(msg)
 
-    with Pool(UPLOAD_CONCURRENCY) as pool:
+    with Pool(parallel) as pool:
         for index, (filepath, xmp_root) in enumerate(files_to_upload):
             pool.apply_async(
                 upload_to_flickr,
@@ -191,7 +199,7 @@ def complete(folder, filter_label, is_yes, **kwargs):
         progress_bar.update(1)
 
     now_ts = generate_timestamps(len(photos_uploaded))
-    with Pool(UPLOAD_CONCURRENCY) as pool:
+    with Pool(parallel) as pool:
         for photo_item in zip(photos_uploaded, now_ts):
             pool.apply_async(
                 set_date_taken,
@@ -216,7 +224,7 @@ def complete(folder, filter_label, is_yes, **kwargs):
         def _result_callback(result):
             progress_bar.update(1)
 
-        with Pool(UPLOAD_CONCURRENCY) as pool:
+        with Pool(parallel) as pool:
             for photo_item in photos_uploaded:
                 pool.apply_async(
                     add_to_album,
@@ -257,17 +265,22 @@ def diff(folder, filter_label, is_yes, **kwargs):
     images = get_photos(flickr, upload_options.album_id)
 
     flickr_index_by_did = {}
-    progress_bar = tqdm(images)
+    progress_bar = tqdm(images, desc="Getting exif + DocumentID...")
     for image in progress_bar:
         # get exif info from flick
-        progress_bar.set_description(f"Getting exif for {image.id}")
+        try:
+            resp = Addict(retry(partial(flickr.photos.getExif, photo_id=image.id)))
+            for exif in resp.photo.exif:
+                if exif.tag == "DocumentID":
+                    document_id = exif.raw._content
+                    flickr_index_by_did[document_id] = image
+                    break
+            else:
+                progress_bar.write(f"No DocumentID found for {image.id}")
 
-        resp = Addict(flickr.photos.getExif(photo_id=image.id))
-        for exif in resp.photo.exif:
-            if exif.tag == "DocumentID":
-                document_id = exif.raw._content
-                flickr_index_by_did[document_id] = image
-                break
+        except Exception as e:
+            msg = f"Error getting DocumentID for {image.id}: {e}"
+            progress_bar.write(msg)
 
     local_did_set = set(file_index_by_did.keys())
     flickr_did_set = set(flickr_index_by_did.keys())
@@ -287,7 +300,11 @@ def diff(folder, filter_label, is_yes, **kwargs):
 
     progress_bar = tqdm(files_to_upload, desc="Uploading...")
     for index, filepath, xmp_root in enumerate(progress_bar):
-        upload_to_flickr(flickr, upload_options, index, filepath, xmp_root)
+        try:
+            upload_to_flickr(flickr, upload_options, index, filepath, xmp_root)
+        except Exception as ex:
+            msg = ex.args[0]
+            progress_bar.write(msg)
     progress_bar.close()
 
 
