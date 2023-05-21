@@ -1,5 +1,7 @@
 import logging
+from multiprocessing import Pool
 import os
+import time
 
 from addict import Dict as Addict
 from attrs import define
@@ -20,6 +22,8 @@ from xmp_utils import (
 
 API_RETRIES = 3
 
+UPLOAD_CONCURRENCY = 4
+
 # sometimes output error page for 500 errors
 logging.getLogger("flickrapi").disabled = True
 
@@ -29,6 +33,18 @@ class ConfirmationAbortedException(Exception):
 
 
 class ValidationError(Exception):
+    pass
+
+
+class UploadError(Exception):
+    pass
+
+
+class AlbumCreationError(Exception):
+    pass
+
+
+class AddToAlbumError(Exception):
     pass
 
 
@@ -133,11 +149,85 @@ def complete(folder, filter_label, is_yes, **kwargs):
             raise ConfirmationAbortedException()
 
     files_to_upload = order_by_date(files_to_upload)
+    photos_uploaded = []
 
-    # FIXME parallel uploads
-    progress_bar = tqdm(files_to_upload)
-    for filepath, xmp_root in progress_bar:
-        upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root)
+    progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload))
+
+    def _result_callback(result):
+        photos_uploaded.append(result)
+        progress_bar.update(1)
+
+    def _error_callback(ex):
+        msg = ex.args[0]
+        progress_bar.write(msg)
+
+    with Pool(UPLOAD_CONCURRENCY) as pool:
+        for index, (filepath, xmp_root) in enumerate(files_to_upload):
+            pool.apply_async(
+                upload_to_flickr,
+                (flickr, upload_options, index, filepath, xmp_root),
+                callback=_result_callback,
+                error_callback=_error_callback,
+            )
+        pool.close()
+        pool.join()
+
+    progress_bar.close()
+
+    if photos_uploaded:
+        print(f"{len(photos_uploaded)} files uploaded")
+
+    # parallel upload may have changed the order : the first item of the tuple is
+    # the rank in the original order
+    photos_uploaded = sorted(photos_uploaded, key=lambda x: x[0])
+    photos_uploaded = [x[1] for x in photos_uploaded]
+
+    # so the photos appear in order in the photostream
+    print("Resetting upload dates...")
+
+    progress_bar = tqdm(desc="Reordering...", total=len(photos_uploaded))
+
+    def _result_callback(result):
+        progress_bar.update(1)
+
+    now_ts = generate_timestamps(len(photos_uploaded))
+    with Pool(UPLOAD_CONCURRENCY) as pool:
+        for photo_item in zip(photos_uploaded, now_ts):
+            pool.apply_async(
+                set_date_taken,
+                (flickr, *photo_item),
+            )
+        pool.close()
+        pool.join()
+
+    progress_bar.close()
+
+    album_id = upload_options.album_id
+    if upload_options.is_create_album and not album_id:
+        print("Creating album...")
+        primary_photo_id = photos_uploaded[0]
+        album_id = create_album(flickr, upload_options, primary_photo_id)
+
+    if album_id:
+        print(f"Adding photos to album {album_id}...")
+
+        progress_bar = tqdm(desc="Adding to album...", total=len(photos_uploaded))
+
+        def _result_callback(result):
+            progress_bar.update(1)
+
+        with Pool(UPLOAD_CONCURRENCY) as pool:
+            for photo_item in photos_uploaded:
+                pool.apply_async(
+                    add_to_album,
+                    (flickr, upload_options, photo_item),
+                    callback=_result_callback,
+                    error_callback=_error_callback,
+                )
+            pool.close()
+            pool.join()
+
+        progress_bar.close()
 
 
 # to upload photos that are missing
@@ -181,24 +271,24 @@ def diff(folder, filter_label, is_yes, **kwargs):
 
     local_did_set = set(file_index_by_did.keys())
     flickr_did_set = set(flickr_index_by_did.keys())
-    files_to_upload = list(local_did_set - flickr_did_set)
-    if not files_to_upload:
+    dids_to_upload = local_did_set - flickr_did_set
+    if not dids_to_upload:
         print("Nothing to upload")
         return
 
-    print(f"{len(files_to_upload)} files to upload")
+    print(f"{len(dids_to_upload)} files to upload")
 
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
             raise ConfirmationAbortedException()
 
+    files_to_upload = [file_index_by_did[did] for did in dids_to_upload]
     files_to_upload = order_by_date(files_to_upload)
 
-    progress_bar = tqdm(files_to_upload)
-    for did in progress_bar:
-        filepath, xmp_root = file_index_by_did[did]
-
-        upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root)
+    progress_bar = tqdm(files_to_upload, desc="Uploading...")
+    for index, filepath, xmp_root in enumerate(progress_bar):
+        upload_to_flickr(flickr, upload_options, index, filepath, xmp_root)
+    progress_bar.close()
 
 
 def order_by_date(files_to_upload):
@@ -213,15 +303,16 @@ def date_taken_key(x):
     return dt_original.decode("ascii")
 
 
-def upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root):
+def generate_timestamps(num_photos):
+    now_ts = int(time.time()) - num_photos + 1
+    timestamps = [now_ts + i for i in range(num_photos)]
+    return timestamps
+
+
+def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root):
     title = get_title(xmp_root)
     tags = get_tags(xmp_root)
     flickr_tags = format_tags(tags)
-
-    # geotags should be picked up on the Flickr side
-    progress_bar.set_description(
-        f"Uploading file {filepath} : {title}, {len(tags)} tags"
-    )
 
     def upload():
         # for some reason the default JSON format is not working, only XML
@@ -235,19 +326,13 @@ def upload_to_flickr(flickr, progress_bar, upload_options, filepath, xmp_root):
         )
         return resp
 
-    def retry_callback():
-        progress_bar.set_description(
-            f"Retrying file {filepath} : {title}, {len(tags)} tags"
-        )
-
     try:
-        resp = retry(API_RETRIES, upload, retry_callback)
+        resp = retry(API_RETRIES, upload)
         photo_id = resp.find("photoid").text
-        add_to_album(flickr, progress_bar, upload_options, photo_id)
-        progress_bar.set_description("Done")
+        return order, photo_id
     except Exception as e:
         msg = f"Error uploading file {filepath}: {e}"
-        progress_bar.write(msg)
+        raise UploadError(msg)
 
 
 def filtered(folder, filter_label):
@@ -278,7 +363,7 @@ def index_by_did(files_set):
     return file_index_by_id
 
 
-def retry(num_retries, func, retry_callback):
+def retry(num_retries, func, retry_callback=None):
     retry = num_retries
     while retry > 0:
         try:
@@ -286,39 +371,47 @@ def retry(num_retries, func, retry_callback):
         except Exception:
             retry -= 1
             if retry > 0:
-                retry_callback()
+                if retry_callback:
+                    retry_callback()
                 continue
             raise
 
 
-def add_to_album(flickr, progress_bar, upload_options, photo_id):
+def set_date_taken(flickr, photo_id, timestamp):
+    def func():
+        return flickr.photos.setDates(
+            photo_id=photo_id,
+            date_taken=timestamp,
+        )
+
+    retry(API_RETRIES, func)
+
+
+def create_album(flickr, upload_options, primary_photo_id):
+    try:
+        # create album using Flicker api
+        def func():
+            return flickr.photosets.create(
+                title=upload_options.album_name,
+                description=upload_options.album_description,
+                primary_photo_id=primary_photo_id,
+            )
+
+        resp = Addict(retry(API_RETRIES, func))
+        album_id = resp.photoset.id
+        return album_id
+    except Exception as e:
+        msg = f"Error creating album {upload_options.album_name}: {e}"
+        raise AlbumCreationError(msg)
+
+
+def add_to_album(flickr, upload_options, photo_id):
     # do after photo upload : primary_photo_id is needed
     album_id = upload_options.album_id
-    if upload_options.is_create_album and not album_id:
-        try:
-            # create album using Flicker api
-            resp = Addict(
-                flickr.photosets.create(
-                    title=upload_options.album_name,
-                    description=upload_options.album_description,
-                    primary_photo_id=photo_id,
-                )
-            )
-            album_id = resp.photoset.id
-            upload_options.album_id = album_id
-        except Exception as e:
-            msg = f"Error creating album {upload_options.album_name}: {e}"
-            progress_bar.write(msg)
-
-        # if album created successfully : primary photo is added so no need to
-        # add it again ; else if error : no album_id anyway
-        return
 
     if album_id:
         try:
             # append to existing album
-            progress_bar.set_description(f"Appending to album {album_id}")
-
             # add photos to album
             def func():
                 flickr.photosets.addPhoto(
@@ -326,14 +419,11 @@ def add_to_album(flickr, progress_bar, upload_options, photo_id):
                     photo_id=photo_id,
                 )
 
-            def retry_callback():
-                progress_bar.set_description(f"Retrying appending to album {album_id}")
-
-            retry(API_RETRIES, func, retry_callback)
+            retry(API_RETRIES, func)
 
         except Exception as e:
             msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
-            progress_bar.write(msg)
+            raise AddToAlbumError(msg)
 
 
 if __name__ == "__main__":
