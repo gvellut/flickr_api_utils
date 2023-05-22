@@ -257,7 +257,7 @@ def _add_to_album(flickr, upload_options, photos_uploaded, parallel):
             for photo_item in photos_uploaded:
                 pool.apply_async(
                     add_to_album,
-                    (flickr, upload_options, photo_item),
+                    (flickr, album_id, photo_item),
                     callback=_result_callback,
                     error_callback=_error_callback,
                 )
@@ -445,25 +445,21 @@ def create_album(flickr, upload_options, primary_photo_id):
         raise AlbumCreationError(msg)
 
 
-def add_to_album(flickr, upload_options, photo_id):
-    # do after photo upload : primary_photo_id is needed
-    album_id = upload_options.album_id
+def add_to_album(flickr, album_id, photo_id):
+    try:
+        # append to existing album
+        # add photos to album
+        def func():
+            flickr.photosets.addPhoto(
+                photoset_id=album_id,
+                photo_id=photo_id,
+            )
 
-    if album_id:
-        try:
-            # append to existing album
-            # add photos to album
-            def func():
-                flickr.photosets.addPhoto(
-                    photoset_id=album_id,
-                    photo_id=photo_id,
-                )
+        retry(API_RETRIES, func)
 
-            retry(API_RETRIES, func)
-
-        except Exception as e:
-            msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
-            raise AddToAlbumError(msg)
+    except Exception as e:
+        msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
+        raise AddToAlbumError(msg)
 
 
 if __name__ == "__main__":
