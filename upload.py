@@ -7,6 +7,7 @@ import os
 from addict import Dict as Addict
 from attrs import define
 import click
+import flickrapi
 import piexif
 from tqdm import tqdm
 
@@ -26,6 +27,7 @@ API_RETRIES = 3
 UPLOAD_CONCURRENCY = 4
 
 # sometimes output error page for 500 errors
+flickrapi.set_log_level(logging.INFO)
 logging.getLogger("flickrapi").disabled = True
 
 
@@ -151,6 +153,12 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
 
     print(f"{len(files_to_upload)} files to upload")
 
+    _print_album_options(upload_options)
+    if upload_options.is_public:
+        print("Will make photos public")
+    else:
+        print("Will keep photos private")
+
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
             raise ConfirmationAbortedException()
@@ -199,6 +207,15 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
     photos_uploaded = [x[1] for x in photos_uploaded]
 
     return photos_uploaded
+
+
+def _print_album_options(upload_options):
+    if upload_options.is_create_album:
+        print(f"Will create album {upload_options.album_name}")
+    elif upload_options.album_id:
+        print(f"Will add to album {upload_options.album_id}")
+    else:
+        print("Not adding to album")
 
 
 def _set_date_posted(flickr, photos_uploaded, parallel):
