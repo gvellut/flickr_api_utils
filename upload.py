@@ -157,9 +157,11 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
 
     files_to_upload = order_by_date(files_to_upload)
 
-    photos_uploaded = _upload_photos(flickr, upload_options, files_to_upload, parallel)
-    _set_date_posted(flickr, photos_uploaded, parallel)
-    _add_to_album(flickr, upload_options, photos_uploaded, parallel)
+    photos_uploaded_id = _upload_photos(
+        flickr, upload_options, files_to_upload, parallel
+    )
+    _set_date_posted(flickr, photos_uploaded_id, parallel)
+    _add_to_album(flickr, upload_options, photos_uploaded_id, parallel)
 
 
 def _upload_photos(flickr, upload_options, files_to_upload, parallel):
@@ -234,17 +236,19 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
     progress_bar.close()
 
 
-def _add_to_album(flickr, upload_options, photos_uploaded, parallel):
+def _add_to_album(flickr, upload_options, photos_uploaded_id, parallel):
     album_id = upload_options.album_id
+    primary_photo_id = None
     if upload_options.is_create_album and not album_id:
         print("Creating album...")
-        primary_photo_id = photos_uploaded[0]
+        primary_photo_id = photos_uploaded_id[0]
         album_id = create_album(flickr, upload_options, primary_photo_id)
+        print(f"Album created with id {album_id}")
 
     if album_id:
         print(f"Adding photos to album {album_id}...")
 
-        progress_bar = tqdm(desc="Adding to album...", total=len(photos_uploaded))
+        progress_bar = tqdm(desc="Adding to album...", total=len(photos_uploaded_id))
 
         def _result_callback(result):
             progress_bar.update(1)
@@ -254,10 +258,13 @@ def _add_to_album(flickr, upload_options, photos_uploaded, parallel):
             progress_bar.write(msg)
 
         with Pool(parallel) as pool:
-            for photo_item in photos_uploaded:
+            for photo_id in photos_uploaded_id:
+                if primary_photo_id == photo_id:
+                    # already added in create_album
+                    continue
                 pool.apply_async(
                     add_to_album,
-                    (flickr, album_id, photo_item),
+                    (flickr, album_id, photo_id),
                     callback=_result_callback,
                     error_callback=_error_callback,
                 )
