@@ -2,6 +2,7 @@ from datetime import datetime
 from functools import partial
 import logging
 from multiprocessing import Pool
+from operator import attrgetter
 import os
 
 from addict import Dict as Addict
@@ -165,11 +166,11 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
 
     files_to_upload = order_by_date(files_to_upload)
 
-    photos_uploaded_id = _upload_photos(
+    photo_uploaded_ids = _upload_photos(
         flickr, upload_options, files_to_upload, parallel
     )
-    _set_date_posted(flickr, photos_uploaded_id, parallel)
-    _add_to_album(flickr, upload_options, photos_uploaded_id, parallel)
+    _set_date_posted(flickr, photo_uploaded_ids, parallel)
+    _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel)
 
 
 def _upload_photos(flickr, upload_options, files_to_upload, parallel):
@@ -222,7 +223,7 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
     # so the photos appear in order in the photostream
     print("Resetting upload dates...")
 
-    progress_bar = tqdm(desc="Reordering...", total=len(photos_uploaded))
+    progress_bar = tqdm(desc="Resetting dates...", total=len(photos_uploaded))
 
     def _result_callback(result):
         progress_bar.update(1)
@@ -253,19 +254,19 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
     progress_bar.close()
 
 
-def _add_to_album(flickr, upload_options, photos_uploaded_id, parallel):
+def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
     album_id = upload_options.album_id
     primary_photo_id = None
     if upload_options.is_create_album and not album_id:
         print("Creating album...")
-        primary_photo_id = photos_uploaded_id[0]
+        primary_photo_id = photo_uploaded_ids[0]
         album_id = create_album(flickr, upload_options, primary_photo_id)
         print(f"Album created with id {album_id}")
 
     if album_id:
         print(f"Adding photos to album {album_id}...")
 
-        progress_bar = tqdm(desc="Adding to album...", total=len(photos_uploaded_id))
+        progress_bar = tqdm(desc="Adding to album...", total=len(photo_uploaded_ids))
 
         def _result_callback(result):
             progress_bar.update(1)
@@ -275,7 +276,7 @@ def _add_to_album(flickr, upload_options, photos_uploaded_id, parallel):
             progress_bar.write(msg)
 
         with Pool(parallel) as pool:
-            for photo_id in photos_uploaded_id:
+            for photo_id in photo_uploaded_ids:
                 if primary_photo_id == photo_id:
                     # already added in create_album
                     continue
@@ -289,6 +290,16 @@ def _add_to_album(flickr, upload_options, photos_uploaded_id, parallel):
             pool.join()
 
         progress_bar.close()
+
+        print("Reordering album...")
+        # get everything in the album and reorder it: tried with only passing the new
+        # uploads but weird result
+        album_photos = get_photos(flickr, upload_options.album_id)
+        photos = sorted(album_photos, key=attrgetter("datetaken"))
+        photo_ids = list(map(attrgetter("id"), photos))
+
+        q_photo_ids = ",".join(photo_ids)
+        flickr.photosets.reorderPhotos(photoset_id=album_id, photo_ids=q_photo_ids)
 
 
 # to upload photos that are missing
