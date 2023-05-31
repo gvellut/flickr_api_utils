@@ -294,7 +294,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
         print("Reordering album...")
         # get everything in the album and reorder it: tried with only passing the new
         # uploads but weird result
-        album_photos = get_photos(flickr, upload_options.album_id)
+        album_photos = get_photos(flickr, album_id)
         photos = sorted(album_photos, key=attrgetter("datetaken"))
         photo_ids = list(map(attrgetter("id"), photos))
 
