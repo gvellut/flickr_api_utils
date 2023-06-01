@@ -27,9 +27,13 @@ API_RETRIES = 3
 
 UPLOAD_CONCURRENCY = 4
 
-# sometimes output error page for 500 errors
-flickrapi.set_log_level(logging.INFO)
-logging.getLogger("flickrapi").disabled = True
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# too chatty
+flickrapi.set_log_level(logging.CRITICAL)
+# log outputs HTML error page for 500 errors
+logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
 
 
 class ConfirmationAbortedException(Exception):
