@@ -32,8 +32,9 @@ logger = logging.getLogger(__name__)
 
 # too chatty
 flickrapi.set_log_level(logging.CRITICAL)
-# log outputs HTML error page for 500 errors
+# log outputs HTML error page for 500 errors + 504
 logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
+logging.getLogger("flickrapi.auth.OAuthFlickrInterface").disabled = True
 
 
 class ConfirmationAbortedException(Exception):
