@@ -20,6 +20,7 @@ from xmp_utils import (
     get_label,
     get_tags,
     get_title,
+    NoXMPPacketFound,
     parse_xmp,
 )
 
@@ -263,15 +264,18 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
     album_id = upload_options.album_id
     primary_photo_id = None
     if upload_options.is_create_album and not album_id:
-        print("Creating album...")
         primary_photo_id = photo_uploaded_ids[0]
+        print(f"Creating album with primary photo {primary_photo_id} ...")
         album_id = create_album(flickr, upload_options, primary_photo_id)
         print(f"Album created with id {album_id}")
 
     if album_id:
         print(f"Adding photos to album {album_id}...")
 
-        progress_bar = tqdm(desc="Adding to album...", total=len(photo_uploaded_ids))
+        to_add_photo_ids = list(
+            filter(lambda x: x != primary_photo_id, photo_uploaded_ids)
+        )
+        progress_bar = tqdm(desc="Adding to album...", total=len(to_add_photo_ids))
 
         def _result_callback(result):
             progress_bar.update(1)
@@ -281,10 +285,8 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
             progress_bar.write(msg)
 
         with Pool(parallel) as pool:
-            for photo_id in photo_uploaded_ids:
-                if primary_photo_id == photo_id:
-                    # already added in create_album
-                    continue
+            # already added in create_album
+            for photo_id in to_add_photo_ids:
                 pool.apply_async(
                     add_to_album,
                     (flickr, album_id, photo_id),
@@ -434,10 +436,14 @@ def filtered(folder, filter_label):
             continue
 
         if filter_label:
-            file_path = os.path.join(folder, file_name)
-            xmp_bytes = extract_xmp(file_path)
-            xmp_root = parse_xmp(xmp_bytes)
-            if not is_filtered(xmp_root, filter_label):
+            try:
+                file_path = os.path.join(folder, file_name)
+                xmp_bytes = extract_xmp(file_path)
+                xmp_root = parse_xmp(xmp_bytes)
+                if not is_filtered(xmp_root, filter_label):
+                    continue
+            except NoXMPPacketFound:
+                logger.warning(f"No XMP data for {file_name}")
                 continue
 
         files_to_upload.append((file_path, xmp_root))
