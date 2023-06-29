@@ -22,11 +22,11 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720308482555")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720309320284")
 images = get_photos(flickr, album.album_id)
 
-start_id = "52922582680"
-end_id = "52922199281"
+start_id = "52999973802"
+end_id = "53000727769"
 
 is_process = False
 for image in images:
@@ -36,17 +36,17 @@ for image in images:
     if not is_process:
         continue
 
-    title, n = re.subn("Lathuile", "Doussard", image.title)
+    title, n = re.subn("Drumetta-", "Drumettaz-", image.title)
     if n:
         flickr.photos.setMeta(photo_id=image.id, title=title)
 
-        info = Addict(flickr.photos.getInfo(photo_id=image.id))
-        for tag in info.photo.tags.tag:
-            if tag["raw"] == "lathuile":
-                tag_id_to_remove = tag.id
-                resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+        # info = Addict(flickr.photos.getInfo(photo_id=image.id))
+        # for tag in info.photo.tags.tag:
+        #     if tag["raw"] == "lathuile":
+        #         tag_id_to_remove = tag.id
+        #         resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-        flickr.photos.addTags(photo_id=image.id, tags='"doussard"')
+        # flickr.photos.addTags(photo_id=image.id, tags='"doussard"')
 
     # incluide photo with end_id in processing
     if image.id == end_id:
