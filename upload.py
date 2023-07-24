@@ -189,7 +189,7 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
         progress_bar.update(1)
 
     def _error_callback(ex):
-        msg = ex.args[0]
+        msg = str(ex.args[0])
         progress_bar.write(msg)
 
     with Pool(parallel) as pool:
@@ -235,7 +235,7 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
         progress_bar.update(1)
 
     def _error_callback(ex):
-        msg = ex.args[0]
+        msg = str(ex.args[0])
         progress_bar.write(msg)
 
     now_ts = generate_timestamps(len(photos_uploaded))
@@ -281,7 +281,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
             progress_bar.update(1)
 
         def _error_callback(ex):
-            msg = ex.args[0]
+            msg = str(ex.args[0])
             progress_bar.write(msg)
 
         with Pool(parallel) as pool:
