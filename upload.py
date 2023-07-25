@@ -4,6 +4,7 @@ import logging
 from multiprocessing import Pool
 from operator import attrgetter
 import os
+from time import sleep
 
 from addict import Dict as Addict
 from attrs import define
@@ -25,6 +26,7 @@ from xmp_utils import (
 )
 
 API_RETRIES = 3
+API_RETRY_DELAY = 5
 
 UPLOAD_CONCURRENCY = 4
 
@@ -468,6 +470,7 @@ def retry(num_retries, func, retry_callback=None):
             retry -= 1
             if retry > 0:
                 if retry_callback:
+                    sleep(API_RETRY_DELAY)
                     retry_callback()
                 continue
             raise
