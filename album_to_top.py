@@ -7,7 +7,7 @@ from api_auth import auth_flickr
 
 flickr = auth_flickr()
 
-to_top_album_id = "72157720098628314"
+to_top_album_id = "72177720310298275"
 
 
 def all_pages(page_elem, iter_elem, func, *args, **kwargs):

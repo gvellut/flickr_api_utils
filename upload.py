@@ -303,7 +303,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
         print("Reordering album...")
         # get everything in the album and reorder it: tried with only passing the new
         # uploads but weird result
-        album_photos = get_photos(flickr, album_id)
+        album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
         photos = sorted(album_photos, key=attrgetter("datetaken"))
         photo_ids = list(map(attrgetter("id"), photos))
 
@@ -461,7 +461,7 @@ def index_by_did(files_set):
     return file_index_by_id
 
 
-def retry(num_retries, func, retry_callback=None):
+def retry(num_retries, func):
     retry = num_retries
     while retry > 0:
         try:
@@ -469,9 +469,7 @@ def retry(num_retries, func, retry_callback=None):
         except Exception:
             retry -= 1
             if retry > 0:
-                if retry_callback:
-                    sleep(API_RETRY_DELAY)
-                    retry_callback()
+                sleep(API_RETRY_DELAY)
                 continue
             raise
 
