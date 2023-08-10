@@ -25,7 +25,7 @@ from xmp_utils import (
     parse_xmp,
 )
 
-API_RETRIES = 3
+API_RETRIES = 6
 API_RETRY_DELAY = 5
 
 UPLOAD_CONCURRENCY = 4
@@ -191,7 +191,7 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
         progress_bar.update(1)
 
     def _error_callback(ex):
-        msg = str(ex.args[0])
+        msg = "Error during 'Uploading photos': " + str(ex.args[0])
         progress_bar.write(msg)
 
     with Pool(parallel) as pool:
@@ -237,7 +237,7 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
         progress_bar.update(1)
 
     def _error_callback(ex):
-        msg = str(ex.args[0])
+        msg = "Error during 'Resetting upload dates': " + str(ex.args[0])
         progress_bar.write(msg)
 
     now_ts = generate_timestamps(len(photos_uploaded))
@@ -283,7 +283,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
             progress_bar.update(1)
 
         def _error_callback(ex):
-            msg = str(ex.args[0])
+            msg = "Error during 'Adding to album': " + str(ex.args[0])
             progress_bar.write(msg)
 
         with Pool(parallel) as pool:
