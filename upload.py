@@ -30,6 +30,8 @@ API_RETRY_DELAY = 5
 
 UPLOAD_CONCURRENCY = 4
 
+NCOLS = 80
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -184,7 +186,7 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
 def _upload_photos(flickr, upload_options, files_to_upload, parallel):
     photos_uploaded = []
 
-    progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload))
+    progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload), ncols=NCOLS)
 
     def _result_callback(result):
         photos_uploaded.append(result)
@@ -231,7 +233,9 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
     # so the photos appear in order in the photostream
     print("Resetting upload dates...")
 
-    progress_bar = tqdm(desc="Resetting dates...", total=len(photos_uploaded))
+    progress_bar = tqdm(
+        desc="Resetting dates...", total=len(photos_uploaded), ncols=NCOLS
+    )
 
     def _result_callback(result):
         progress_bar.update(1)
@@ -277,7 +281,9 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
         to_add_photo_ids = list(
             filter(lambda x: x != primary_photo_id, photo_uploaded_ids)
         )
-        progress_bar = tqdm(desc="Adding to album...", total=len(to_add_photo_ids))
+        progress_bar = tqdm(
+            desc="Adding to album...", total=len(to_add_photo_ids), ncols=NCOLS
+        )
 
         def _result_callback(result):
             progress_bar.update(1)
@@ -338,7 +344,7 @@ def diff(folder, filter_label, is_yes, **kwargs):
     images = get_photos(flickr, upload_options.album_id)
 
     flickr_index_by_did = {}
-    progress_bar = tqdm(images, desc="Getting exif + DocumentID...")
+    progress_bar = tqdm(images, desc="Getting exif + DocumentID...", ncols=NCOLS)
     for image in progress_bar:
         # get exif info from flick
         try:
@@ -373,7 +379,7 @@ def diff(folder, filter_label, is_yes, **kwargs):
     files_to_upload = [file_index_by_did[did] for did in dids_to_upload]
     files_to_upload = order_by_date(files_to_upload)
 
-    progress_bar = tqdm(files_to_upload, desc="Uploading...")
+    progress_bar = tqdm(files_to_upload, desc="Uploading...", ncols=NCOLS)
     for index, filepath, xmp_root in enumerate(progress_bar):
         try:
             upload_to_flickr(flickr, upload_options, index, filepath, xmp_root)
