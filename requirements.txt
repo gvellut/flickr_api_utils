@@ -6,3 +6,4 @@ pillow~=9.5.0
 tqdm~=4.65.0
 click~=8.1.0
 attrs~=23.1.0
+toml~=0.10.0
