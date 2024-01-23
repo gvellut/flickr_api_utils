@@ -11,14 +11,20 @@ POSTS_DIR = "/Users/guilhem/Documents/projects/github/website/hugo_project/conte
 URL_FILEPATH = "/Users/guilhem/Documents/projects/github/website/flickr_gen/urls.txt"
 
 
+class DuplicateFlickrPostError(Exception):
+    pass
+
+
 @click.command()
 def to_markdown():
     posts = hug.parse_hugo_content(POSTS_DIR, only_toml=False)
     this_post = None
     for filepath, fm, _ in posts:
         if fm.get("flickr"):
+            if this_post:
+                raise DuplicateFlickrPostError("Multiple flickr posts")
             this_post = filepath
-            break
+            # do not break so we can check if multiple Flickr posts
 
     if not this_post:
         raise click.ClickException("No post for flickr: Set 'flickr' to True in FM")

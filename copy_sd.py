@@ -12,9 +12,9 @@ else:
     DATE = None
 
 
-MEDIA = ["LUMIX", "XS10"]
+MEDIA = ["LUMIX", "XS10", "RX100M7"]
 output_parent_folder = "/Volumes/CrucialX8/photos"
-MEDIA_FOLDER_MAPPING = {"LUMIX": "tz95", "XS10": "xs10"}
+MEDIA_FOLDER_MAPPING = {"LUMIX": "tz95", "XS10": "xs10", "RX100M7": "rx100"}
 
 
 def create_folder_with_date(parent_folder, name, date):
@@ -43,7 +43,7 @@ def get_volumes(media):
     ]
 
 
-def check_volumes(volumes, output_folder_base, date):
+def copy_to_volumes(volumes, output_folder_base, date):
     for volume, volume_path in volumes:
         media_folder = MEDIA_FOLDER_MAPPING[volume]
         output_folder = os.path.join(output_folder_base, media_folder)
@@ -70,10 +70,17 @@ date = to_date(DATE)
 output_folder_base = create_folder_with_date(output_parent_folder, NAME, date)
 volumes = get_volumes(MEDIA)
 
+if not volumes:
+    print("No relevant SD card. Volume not renamed?")
+    exit(1)
+
 volumes_s = ", ".join((v[0] for v in volumes))
+volume_mapping = [MEDIA_FOLDER_MAPPING[volume[0]] for volume in volumes]
+volume_mapping_s = ", ".join(volume_mapping)
 if not click.confirm(
     f"The images will be copied from : {volumes_s} to {output_folder_base} "
-    + f"(date: {date}) Confirm?"
+    f"[folders {volume_mapping_s}] - (date: {date})\nConfirm?"
 ):
-    raise ValueError("No")
-check_volumes(volumes, output_folder_base, date)
+    print("Aborted by user")
+    exit(1)
+copy_to_volumes(volumes, output_folder_base, date)
