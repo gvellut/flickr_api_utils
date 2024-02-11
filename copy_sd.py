@@ -17,19 +17,40 @@ output_parent_folder = "/Volumes/CrucialX8/photos"
 MEDIA_FOLDER_MAPPING = {"LUMIX": "tz95", "XS10": "xs10", "RX100M7": "rx100"}
 
 
-def create_folder_with_date(parent_folder, name, date):
+def dirname_with_date(parent_folder, name, date):
     date_s = date.strftime("%Y%m%d")
     output_folder = os.path.join(parent_folder, f"{date_s}_{name}")
-    os.makedirs(output_folder, exist_ok=True)
+
     return output_folder
 
 
-def to_date(date_s):
+def to_dates(date_s, volumes):
     if not date_s or date_s == "TD":
-        return datetime.now().date()
+        # same date for all volumes
+        return [datetime.now().date()] * len(volumes)
+
     if date_s == "YD":
-        return datetime.now().date() - timedelta(days=1)
-    return datetime.strptime(date_s, "%Y%m%d").date()
+        return [datetime.now().date() - timedelta(days=1)] * len(volumes)
+
+    if date_s == "L":
+        # L for latest
+        dates = [find_latest_date(v) for v in volumes]
+        return dates
+
+    return [datetime.strptime(date_s, "%Y%m%d").date()] * len(volumes)
+
+
+def find_latest_date(volume):
+    volume_path = volume[1]
+    dates = []
+    for root, _, filenames in os.walk(volume_path):
+        for filename in filenames:
+            if not filter_relevant_image(filename):
+                continue
+            file_path = os.path.join(root, filename)
+            last_modified_date = datetime.fromtimestamp(os.path.getmtime(file_path))
+            dates.append(last_modified_date.date())
+    return max(dates)
 
 
 def get_volumes(media):
@@ -43,8 +64,14 @@ def get_volumes(media):
     ]
 
 
-def copy_to_volumes(volumes, output_folder_base, date):
-    for volume, volume_path in volumes:
+def filter_relevant_image(filename):
+    return filename.lower().endswith((".jpg", ".jpeg", ".raf", ".raw", ".m4a", ".avi"))
+
+
+def copy_to_volumes(volumes, output_folder_base, dates):
+    os.makedirs(output_folder_base, exist_ok=True)
+
+    for i, (volume, volume_path) in enumerate(volumes):
         media_folder = MEDIA_FOLDER_MAPPING[volume]
         output_folder = os.path.join(output_folder_base, media_folder)
         os.makedirs(output_folder, exist_ok=True)
@@ -52,35 +79,40 @@ def copy_to_volumes(volumes, output_folder_base, date):
         counter = 0
         for root, _, filenames in os.walk(volume_path):
             for filename in filenames:
-                if not filename.lower().endswith(
-                    (".jpg", ".jpeg", ".raf", ".raw", ".m4a")
-                ):
+                if not filter_relevant_image(filename):
                     continue
                 file_path = os.path.join(root, filename)
                 last_modified_date = datetime.fromtimestamp(os.path.getmtime(file_path))
 
-                if last_modified_date.date() == date:
+                if last_modified_date.date() == dates[i]:
                     counter += 1
                     if counter % 20 == 0:
                         print(f"Copy #{counter}: {file_path}")
                     shutil.copy2(file_path, output_folder)
 
 
-date = to_date(DATE)
-output_folder_base = create_folder_with_date(output_parent_folder, NAME, date)
 volumes = get_volumes(MEDIA)
 
 if not volumes:
     print("No relevant SD card. Volume not renamed?")
     exit(1)
 
+
+dates = to_dates(DATE, volumes)
+# arbitrarily take the first date
+f_date = min(dates)
+output_folder_base = dirname_with_date(output_parent_folder, NAME, f_date)
+
 volumes_s = ", ".join((v[0] for v in volumes))
 volume_mapping = [MEDIA_FOLDER_MAPPING[volume[0]] for volume in volumes]
 volume_mapping_s = ", ".join(volume_mapping)
+dates_s = ", ".join([d.isoformat() for d in dates])
 if not click.confirm(
     f"The images will be copied from : {volumes_s} to {output_folder_base} "
-    f"[folders {volume_mapping_s}] - (date: {date})\nConfirm?"
+    f"[folders {volume_mapping_s}] - (dates: {dates_s})\nConfirm?"
 ):
     print("Aborted by user")
     exit(1)
-copy_to_volumes(volumes, output_folder_base, date)
+
+
+copy_to_volumes(volumes, output_folder_base, dates)

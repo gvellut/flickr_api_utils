@@ -7,3 +7,4 @@ __pycache__
 *original*.txt
 albums.json
 *.xml
+.DS_Store

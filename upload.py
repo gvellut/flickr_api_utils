@@ -29,6 +29,7 @@ API_RETRIES = 6
 API_RETRY_DELAY = 5
 
 UPLOAD_CONCURRENCY = 4
+QUICK_CONCURRENCY = 1
 
 NCOLS = 80
 
@@ -179,8 +180,8 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
     photo_uploaded_ids = _upload_photos(
         flickr, upload_options, files_to_upload, parallel
     )
-    _set_date_posted(flickr, photo_uploaded_ids, parallel)
-    _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel)
+    _set_date_posted(flickr, photo_uploaded_ids, QUICK_CONCURRENCY)
+    _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
 
 
 def _upload_photos(flickr, upload_options, files_to_upload, parallel):
@@ -467,12 +468,18 @@ def index_by_did(files_set):
     return file_index_by_id
 
 
-def retry(num_retries, func):
+def retry(num_retries, func, error_callack=None):
     retry = num_retries
     while retry > 0:
         try:
             return func()
-        except Exception:
+        except Exception as ex:
+            if error_callack:
+                return_now, raise_now = error_callack(ex)
+                if return_now:
+                    return None
+                if raise_now:
+                    raise
             retry -= 1
             if retry > 0:
                 sleep(API_RETRY_DELAY)
@@ -508,7 +515,13 @@ def add_to_album(flickr, album_id, photo_id):
                 photo_id=photo_id,
             )
 
-        retry(API_RETRIES, func)
+        def error_callack(ex: Exception):
+            if len(ex.args) > 1 and "Error: 3: Photo already in set" in ex.args[0]:
+                return True, False
+
+            return False, False
+
+        retry(API_RETRIES, func, error_callack)
 
     except Exception as e:
         msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
