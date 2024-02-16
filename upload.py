@@ -516,7 +516,9 @@ def add_to_album(flickr, album_id, photo_id):
             )
 
         def error_callack(ex: Exception):
-            if len(ex.args) > 1 and "Error: 3: Photo already in set" in ex.args[0]:
+            # usually means a 500 error was received when adding a photo but the photo
+            # was actually successfully added to album
+            if len(ex.args) > 0 and "Error: 3: Photo already in set" in ex.args[0]:
                 return True, False
 
             return False, False

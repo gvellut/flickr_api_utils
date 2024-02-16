@@ -22,7 +22,7 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720314355777")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720314787968")
 images = get_photos(flickr, album.album_id)
 
 start_id = None  # "53391885218"
@@ -46,11 +46,11 @@ for image in images:
 
     info = Addict(flickr.photos.getInfo(photo_id=image.id))
     for tag in info.photo.tags.tag:
-        if tag["raw"] == "giffre":
+        if tag["raw"] == "saint ferreol":
             tag_id_to_remove = tag.id
             resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-            flickr.photos.addTags(photo_id=image.id, tags='"chablais"')
+            flickr.photos.addTags(photo_id=image.id, tags='"saint-jeoire"')
 
     # incluide photo with end_id in processing
     if end_id is not None and image.id == end_id:
