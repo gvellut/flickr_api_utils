@@ -22,10 +22,10 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720314787968")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720315509721")
 images = get_photos(flickr, album.album_id)
 
-start_id = None  # "53391885218"
+start_id = "53594499234"
 end_id = None  # "53391702206"
 
 is_process = False
@@ -36,21 +36,21 @@ for image in images:
     if not is_process:
         continue
 
-    # title, n = re.subn(
-    #     "Église Saint-Joseph du Pont-Rouge @$",
-    #     "Église Saint-Joseph du Pont-Rouge @ Aix-les-Bains",
-    #     image.title,
-    # )
-    # if n:
-    #     flickr.photos.setMeta(photo_id=image.id, title=title)
+    title, n = re.subn(
+        "Croix du Prafeux @",
+        "Croix de Prafeux @",
+        image.title,
+    )
+    if n:
+        flickr.photos.setMeta(photo_id=image.id, title=title)
 
-    info = Addict(flickr.photos.getInfo(photo_id=image.id))
-    for tag in info.photo.tags.tag:
-        if tag["raw"] == "saint ferreol":
-            tag_id_to_remove = tag.id
-            resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+    # info = Addict(flickr.photos.getInfo(photo_id=image.id))
+    # for tag in info.photo.tags.tag:
+    #     if tag["raw"] == "saint ferreol":
+    #         tag_id_to_remove = tag.id
+    #         resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-            flickr.photos.addTags(photo_id=image.id, tags='"saint-jeoire"')
+    #         flickr.photos.addTags(photo_id=image.id, tags='"saint-jeoire"')
 
     # incluide photo with end_id in processing
     if end_id is not None and image.id == end_id:

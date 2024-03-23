@@ -410,7 +410,7 @@ def generate_timestamps(num_photos):
     return timestamps
 
 
-def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root):
+def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=15):
     title = get_title(xmp_root)
     tags = get_tags(xmp_root)
     flickr_tags = format_tags(tags)
@@ -424,6 +424,7 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root):
             tags=flickr_tags,
             is_public=int(upload_options.is_public),
             format="etree",
+            timeout=timeout,
         )
         return resp
 

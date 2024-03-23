@@ -1,6 +1,7 @@
 import traceback
 
 from addict import Dict as Addict
+import attr
 import click
 
 from api_auth import auth_flickr
@@ -13,6 +14,14 @@ URL_FILEPATH = "/Users/guilhem/Documents/projects/github/website/flickr_gen/urls
 
 class DuplicateFlickrPostError(Exception):
     pass
+
+
+@attr.s
+class FlickrPhoto:
+    title = attr.ib()
+    page_url = attr.ib()
+    medium_url = attr.ib()
+    medium_dims = attr.ib()
 
 
 @click.command()
@@ -73,17 +82,21 @@ def resolve_photos(photo_ids):
         try:
             info = Addict(flickr.photos.getInfo(photo_id=photo_id))
             photo = info["photo"]
+            sizes = Addict(flickr.photos.getSizes(photo_id=photo_id))
+            sizes = sizes["sizes"]
 
             # keep base url => may include album /in/...
             page_url = url
-            medium_url = (
-                f"https://live.staticflickr.com/{photo.server}/{photo_id}_"
-                + f"{photo.secret}_z.jpg"
-            )
+            for size in sizes.size:
+                if size.label == "Medium 640":
+                    # assume always there
+                    medium_url = size.source
+                    medium_dims = (size.width, size.height)
+                    break
 
             title = photo.title["_content"]
 
-            flickr_photos.append((page_url, medium_url, title))
+            flickr_photos.append(FlickrPhoto(title, page_url, medium_url, medium_dims))
         except Exception as ex:
             print(f"Exception occurred with photo {photo_id}: {ex}")
             traceback.print_exc()
@@ -93,9 +106,12 @@ def resolve_photos(photo_ids):
 
 def gen_markdown(photo_data):
     markdowns = []
-    for page_url, medium_url, title in photo_data:
-        title = title.replace('"', '\\"')
-        markdown_link = f'[![]({medium_url} "{title}")]({page_url})'
+    for photo in photo_data:
+        title = photo.title.replace('"', '\\"')
+        hash_part = f"#w={photo.medium_dims[0]}&h={photo.medium_dims[1]}"
+        markdown_link = (
+            f'[![]({photo.medium_url}{hash_part} "{title}")]({photo.page_url})'
+        )
         markdowns.append(markdown_link)
 
     return markdowns
