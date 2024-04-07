@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 import os
 import shutil
+import subprocess
 import sys
+import traceback
 
 import click
 
@@ -64,6 +66,10 @@ def get_volumes(media):
     ]
 
 
+def eject_volume(volume_name):
+    subprocess.run(["diskutil", "eject", f"/Volumes/{volume_name}"])
+
+
 def filter_relevant_image(filename):
     return filename.lower().endswith((".jpg", ".jpeg", ".raf", ".raw", ".m4a", ".avi"))
 
@@ -116,3 +122,11 @@ if not click.confirm(
 
 
 copy_to_volumes(volumes, output_folder_base, dates)
+
+for volume in volumes:
+    try:
+        print(f"Ejecting {volume[1]} ...")
+        eject_volume(volume[0])
+    except Exception:
+        print(f"Error ejecting {volume}")
+        traceback.print_exc()

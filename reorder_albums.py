@@ -9,7 +9,7 @@ from api_auth import auth_flickr
 
 flickr = auth_flickr()
 
-start_album_id = "72177720311082155"
+start_album_id = "72177720313267710"
 
 
 def all_pages(page_elem, iter_elem, func, *args, **kwargs):
