@@ -5,6 +5,7 @@ import subprocess
 import sys
 import traceback
 
+import attr
 import click
 
 NAME = sys.argv[1]
@@ -18,9 +19,17 @@ MEDIA = ["LUMIX", "XS10", "RX100M7"]
 output_parent_folder = "/Volumes/CrucialX8/photos"
 MEDIA_FOLDER_MAPPING = {"LUMIX": "tz95", "XS10": "xs10", "RX100M7": "rx100"}
 
+DATE_FMT = "%Y%m%d"
+
+
+@attr.s
+class DateRange:
+    start = attr.ib()
+    end = attr.ib()
+
 
 def dirname_with_date(parent_folder, name, date):
-    date_s = date.strftime("%Y%m%d")
+    date_s = date.strftime(DATE_FMT)
     output_folder = os.path.join(parent_folder, f"{date_s}_{name}")
 
     return output_folder
@@ -39,7 +48,23 @@ def to_dates(date_s, volumes):
         dates = [find_latest_date(v) for v in volumes]
         return dates
 
-    return [datetime.strptime(date_s, "%Y%m%d").date()] * len(volumes)
+    if "-" in date_s:
+        date_range = parse_date_range(date_s)
+        return date_range
+
+    return [datetime.strptime(date_s, DATE_FMT).date()] * len(volumes)
+
+
+def parse_date_range(date_range_str):
+    dates = date_range_str.split("-")
+    start_date = datetime.strptime(dates[0], DATE_FMT).date() if dates[0] else None
+    end_date = (
+        datetime.strptime(dates[1], DATE_FMT).date()
+        if len(dates) > 1 and dates[1]
+        else None
+    )
+
+    return DateRange(start_date, end_date)
 
 
 def find_latest_date(volume):
@@ -105,6 +130,7 @@ if not volumes:
 
 
 dates = to_dates(DATE, volumes)
+# TODO process dateRange
 # arbitrarily take the first date
 f_date = min(dates)
 output_folder_base = dirname_with_date(output_parent_folder, NAME, f_date)

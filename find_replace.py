@@ -22,10 +22,10 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720315509721")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720315720609")
 images = get_photos(flickr, album.album_id)
 
-start_id = "53594499234"
+start_id = "53669483451"
 end_id = None  # "53391702206"
 
 is_process = False
@@ -37,8 +37,8 @@ for image in images:
         continue
 
     title, n = re.subn(
-        "Croix du Prafeux @",
-        "Croix de Prafeux @",
+        "de la Manettaz",
+        "de Manettaz",
         image.title,
     )
     if n:
