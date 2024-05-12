@@ -22,11 +22,11 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720315720609")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720316546281")
 images = get_photos(flickr, album.album_id)
 
-start_id = "53669483451"
-end_id = None  # "53391702206"
+start_id = "53707672855"
+end_id = "53707575584"
 
 is_process = False
 for image in images:
@@ -36,19 +36,19 @@ for image in images:
     if not is_process:
         continue
 
-    title, n = re.subn(
-        "de la Manettaz",
-        "de Manettaz",
-        image.title,
-    )
-    if n:
-        flickr.photos.setMeta(photo_id=image.id, title=title)
+    # title, n = re.subn(
+    #     "de la Manettaz",
+    #     "de Manettaz",
+    #     image.title,
+    # )
+    # if n:
+    #     flickr.photos.setMeta(photo_id=image.id, title=title)
 
-    # info = Addict(flickr.photos.getInfo(photo_id=image.id))
-    # for tag in info.photo.tags.tag:
-    #     if tag["raw"] == "saint ferreol":
-    #         tag_id_to_remove = tag.id
-    #         resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+    info = Addict(flickr.photos.getInfo(photo_id=image.id))
+    for tag in info.photo.tags.tag:
+        if tag["raw"] == "aiguille de montaubert":
+            tag_id_to_remove = tag.id
+            resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
     #         flickr.photos.addTags(photo_id=image.id, tags='"saint-jeoire"')
 

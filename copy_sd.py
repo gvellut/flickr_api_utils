@@ -8,18 +8,15 @@ import traceback
 import attr
 import click
 
-NAME = sys.argv[1]
-if len(sys.argv) >= 2:
-    DATE = sys.argv[2]
-else:
-    DATE = None
-
-
 MEDIA = ["LUMIX", "XS10", "RX100M7"]
 output_parent_folder = "/Volumes/CrucialX8/photos"
 MEDIA_FOLDER_MAPPING = {"LUMIX": "tz95", "XS10": "xs10", "RX100M7": "rx100"}
 
 DATE_FMT = "%Y%m%d"
+OUTPUT_DATE_FMT = DATE_FMT
+
+# TODO remove the multiple volumes and date array: makes code more complex and is not
+# actually used
 
 
 @attr.s
@@ -28,8 +25,33 @@ class DateRange:
     end = attr.ib()
 
 
-def dirname_with_date(parent_folder, name, date):
-    date_s = date.strftime(DATE_FMT)
+def date_to_str(d):
+    if isinstance(d, DateRange):
+        s = []
+        if d.start:
+            s.append(d.start.isoformat() + " ")
+        s.append("-")
+        if d.end:
+            s.append(" " + d.end.isoformat())
+        return "".join(s)
+    return d.isoformat()
+
+
+def dirname_with_date(parent_folder, name, dates):
+    if isinstance(dates[0], DateRange):
+        # all the same anyway
+        date_r = dates[0]
+        if date_r.start:
+            f_date = date_r.start
+        elif date_r.end:
+            f_date = date_r.end
+        else:
+            # today
+            f_date = datetime.now().date()
+    else:
+        # can be different if L was used
+        f_date = min(dates)
+    date_s = f_date.strftime(OUTPUT_DATE_FMT)
     output_folder = os.path.join(parent_folder, f"{date_s}_{name}")
 
     return output_folder
@@ -49,7 +71,7 @@ def to_dates(date_s, volumes):
         return dates
 
     if "-" in date_s:
-        date_range = parse_date_range(date_s)
+        date_range = [parse_date_range(date_s)] * len(volumes)
         return date_range
 
     return [datetime.strptime(date_s, DATE_FMT).date()] * len(volumes)
@@ -77,6 +99,8 @@ def find_latest_date(volume):
             file_path = os.path.join(root, filename)
             last_modified_date = datetime.fromtimestamp(os.path.getmtime(file_path))
             dates.append(last_modified_date.date())
+    if not dates:
+        return None
     return max(dates)
 
 
@@ -99,6 +123,16 @@ def filter_relevant_image(filename):
     return filename.lower().endswith((".jpg", ".jpeg", ".raf", ".raw", ".m4a", ".avi"))
 
 
+def filter_by_date(image_date, date_):
+    if isinstance(date_, DateRange):
+        if date_.start and image_date < date_.start:
+            return False
+        if date_.end and image_date > date_.end:
+            return False
+        return True
+    return image_date == date_
+
+
 def copy_to_volumes(volumes, output_folder_base, dates):
     os.makedirs(output_folder_base, exist_ok=True)
 
@@ -115,44 +149,56 @@ def copy_to_volumes(volumes, output_folder_base, dates):
                 file_path = os.path.join(root, filename)
                 last_modified_date = datetime.fromtimestamp(os.path.getmtime(file_path))
 
-                if last_modified_date.date() == dates[i]:
+                if filter_by_date(last_modified_date.date(), dates[i]):
                     counter += 1
                     if counter % 20 == 0:
                         print(f"Copy #{counter}: {file_path}")
                     shutil.copy2(file_path, output_folder)
 
 
-volumes = get_volumes(MEDIA)
+# TODO click cli
+def main():
+    NAME = sys.argv[1]
+    if len(sys.argv) >= 2:
+        DATE = sys.argv[2]
+    else:
+        DATE = None
 
-if not volumes:
-    print("No relevant SD card. Volume not renamed?")
-    exit(1)
+    volumes = get_volumes(MEDIA)
+
+    if not volumes:
+        print("No relevant SD card. Volume not renamed?")
+        exit(1)
+
+    dates = to_dates(DATE, volumes)
+    if not dates:
+        # if used with L : need the SD card to be available
+        # to_dates will be None if not the case
+        print("No image found: Is the SD card inserted and mounted?")
+        exit(1)
+    output_folder_base = dirname_with_date(output_parent_folder, NAME, dates)
+
+    volumes_s = ", ".join((v[0] for v in volumes))
+    volume_mapping = [MEDIA_FOLDER_MAPPING[volume[0]] for volume in volumes]
+    volume_mapping_s = ", ".join(volume_mapping)
+    dates_s = ", ".join([date_to_str(d) for d in dates])
+    if not click.confirm(
+        f"The images will be copied from : {volumes_s} to {output_folder_base} "
+        f"[folders {volume_mapping_s}] - (dates: {dates_s})\nConfirm?"
+    ):
+        print("Aborted by user")
+        exit(1)
+
+    copy_to_volumes(volumes, output_folder_base, dates)
+
+    for volume in volumes:
+        try:
+            print(f"Ejecting {volume[1]} ...")
+            eject_volume(volume[0])
+        except Exception:
+            print(f"Error ejecting {volume}")
+            traceback.print_exc()
 
 
-dates = to_dates(DATE, volumes)
-# TODO process dateRange
-# arbitrarily take the first date
-f_date = min(dates)
-output_folder_base = dirname_with_date(output_parent_folder, NAME, f_date)
-
-volumes_s = ", ".join((v[0] for v in volumes))
-volume_mapping = [MEDIA_FOLDER_MAPPING[volume[0]] for volume in volumes]
-volume_mapping_s = ", ".join(volume_mapping)
-dates_s = ", ".join([d.isoformat() for d in dates])
-if not click.confirm(
-    f"The images will be copied from : {volumes_s} to {output_folder_base} "
-    f"[folders {volume_mapping_s}] - (dates: {dates_s})\nConfirm?"
-):
-    print("Aborted by user")
-    exit(1)
-
-
-copy_to_volumes(volumes, output_folder_base, dates)
-
-for volume in volumes:
-    try:
-        print(f"Ejecting {volume[1]} ...")
-        eject_volume(volume[0])
-    except Exception:
-        print(f"Error ejecting {volume}")
-        traceback.print_exc()
+if __name__ == "__main__":
+    main()
