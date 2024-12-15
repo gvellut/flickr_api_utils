@@ -1,6 +1,7 @@
 from addict import Dict as Addict
 
 from api_auth import auth_flickr
+from flickr_utils import get_photos
 
 flickr = auth_flickr()
 
@@ -15,23 +16,18 @@ flickr = auth_flickr()
 #     )
 # )
 
-photoset_id = "72177720309365095"
+photoset_id = "72177720317654892"
 
-album = Addict(
-    flickr.photosets.getPhotos(
-        photoset_id=photoset_id,
-        per_page=500,
-    )
-)
+images = get_photos(flickr, photoset_id)
 
-start_id = "53010449188"
+start_id = "53812610982"
 end_id = None  # "51730863735"
 
 photo_ids = []
 
 is_process = False
 # TODO replace wiht walk https://stuvel.eu/flickrapi-doc/7-util.html
-for photo in album.photoset.photo:
+for photo in images:
     if end_id and photo.id == end_id:
         break
 

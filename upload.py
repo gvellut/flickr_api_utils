@@ -33,7 +33,9 @@ QUICK_CONCURRENCY = 1
 
 NCOLS = 80
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
 logger = logging.getLogger(__name__)
 
 # too chatty
@@ -41,10 +43,6 @@ flickrapi.set_log_level(logging.CRITICAL)
 # log outputs HTML error page for 500 errors + 504
 logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
 logging.getLogger("flickrapi.auth.OAuthFlickrInterface").disabled = True
-
-
-class ConfirmationAbortedException(Exception):
-    pass
 
 
 class ValidationError(Exception):
@@ -173,7 +171,8 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
 
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
-            raise ConfirmationAbortedException()
+            print("Aborted by user")
+            exit(1)
 
     files_to_upload = order_by_date(files_to_upload)
 
@@ -375,7 +374,8 @@ def diff(folder, filter_label, is_yes, **kwargs):
 
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
-            raise ConfirmationAbortedException()
+            print("Aborted by user")
+            exit(1)
 
     files_to_upload = [file_index_by_did[did] for did in dids_to_upload]
     files_to_upload = order_by_date(files_to_upload)

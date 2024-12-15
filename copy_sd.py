@@ -2,15 +2,19 @@ from datetime import datetime, timedelta
 import os
 import shutil
 import subprocess
-import sys
 import traceback
 
 import attr
 import click
 
-MEDIA = ["LUMIX", "XS10", "RX100M7"]
+MEDIA = ["LUMIX", "XS10", "RX100M7", "XS20"]
 output_parent_folder = "/Volumes/CrucialX8/photos"
-MEDIA_FOLDER_MAPPING = {"LUMIX": "tz95", "XS10": "xs10", "RX100M7": "rx100"}
+MEDIA_FOLDER_MAPPING = {
+    "LUMIX": "tz95",
+    "XS10": "xs10",
+    "RX100M7": "rx100",
+    "XS20": "xs20",
+}
 
 DATE_FMT = "%Y%m%d"
 OUTPUT_DATE_FMT = DATE_FMT
@@ -41,10 +45,10 @@ def dirname_with_date(parent_folder, name, dates):
     if isinstance(dates[0], DateRange):
         # all the same anyway
         date_r = dates[0]
-        if date_r.start:
-            f_date = date_r.start
-        elif date_r.end:
+        if date_r.end:
             f_date = date_r.end
+        elif date_r.start:
+            f_date = date_r.start
         else:
             # today
             f_date = datetime.now().date()
@@ -58,16 +62,30 @@ def dirname_with_date(parent_folder, name, dates):
 
 
 def to_dates(date_s, volumes):
-    if not date_s or date_s == "TD":
+    if date_s == "TD":
         # same date for all volumes
         return [datetime.now().date()] * len(volumes)
 
     if date_s == "YD":
         return [datetime.now().date() - timedelta(days=1)] * len(volumes)
 
+    if date_s == "YD2":
+        return [datetime.now().date() - timedelta(days=2)] * len(volumes)
+
+    if date_s == "YD3":
+        return [datetime.now().date() - timedelta(days=3)] * len(volumes)
+
     if date_s == "L":
         # L for latest
         dates = [find_latest_date(v) for v in volumes]
+        return dates
+
+    if date_s == "L2":
+        dates = [find_latest_date(v, rank=1) for v in volumes]
+        return dates
+
+    if date_s == "L3":
+        dates = [find_latest_date(v, rank=2) for v in volumes]
         return dates
 
     if "-" in date_s:
@@ -89,7 +107,7 @@ def parse_date_range(date_range_str):
     return DateRange(start_date, end_date)
 
 
-def find_latest_date(volume):
+def find_latest_date(volume, rank=0):
     volume_path = volume[1]
     dates = []
     for root, _, filenames in os.walk(volume_path):
@@ -101,7 +119,8 @@ def find_latest_date(volume):
             dates.append(last_modified_date.date())
     if not dates:
         return None
-    return max(dates)
+    dates = list(set(dates))
+    return sorted(dates, reverse=True)[rank]
 
 
 def get_volumes(media):
@@ -156,27 +175,41 @@ def copy_to_volumes(volumes, output_folder_base, dates):
                     shutil.copy2(file_path, output_folder)
 
 
-# TODO click cli
-def main():
-    NAME = sys.argv[1]
-    if len(sys.argv) >= 2:
-        DATE = sys.argv[2]
-    else:
-        DATE = None
-
+@click.command()
+@click.option(
+    "--name",
+    "name",
+    required=True,
+    help="Folder name",
+)
+@click.option(
+    "--date",
+    "date_spec",
+    default="TD",
+    help="Date spec",
+    show_default=True,
+)
+@click.option(
+    "--no-eject",
+    "is_eject",
+    default=True,
+    help="Eject SD",
+    is_flag=True,
+)
+def main(name, date_spec, is_eject):
     volumes = get_volumes(MEDIA)
 
     if not volumes:
         print("No relevant SD card. Volume not renamed?")
         exit(1)
 
-    dates = to_dates(DATE, volumes)
+    dates = to_dates(date_spec, volumes)
     if not dates:
         # if used with L : need the SD card to be available
         # to_dates will be None if not the case
         print("No image found: Is the SD card inserted and mounted?")
         exit(1)
-    output_folder_base = dirname_with_date(output_parent_folder, NAME, dates)
+    output_folder_base = dirname_with_date(output_parent_folder, name, dates)
 
     volumes_s = ", ".join((v[0] for v in volumes))
     volume_mapping = [MEDIA_FOLDER_MAPPING[volume[0]] for volume in volumes]
@@ -193,8 +226,9 @@ def main():
 
     for volume in volumes:
         try:
-            print(f"Ejecting {volume[1]} ...")
-            eject_volume(volume[0])
+            if is_eject:
+                print(f"Ejecting {volume[1]} ...")
+                eject_volume(volume[0])
         except Exception:
             print(f"Error ejecting {volume}")
             traceback.print_exc()

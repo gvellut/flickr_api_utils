@@ -22,11 +22,11 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720316546281")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720318422015")
 images = get_photos(flickr, album.album_id)
 
-start_id = "53707672855"
-end_id = "53707575584"
+start_id = "54095193784"
+end_id = "54093997357"
 
 is_process = False
 for image in images:
@@ -36,21 +36,29 @@ for image in images:
     if not is_process:
         continue
 
+    print(f"Processing {image.id} [{image.title}] ...")
+
     # title, n = re.subn(
-    #     "de la Manettaz",
-    #     "de Manettaz",
+    #     "None",
+    #     "Entrevernes",
     #     image.title,
     # )
     # if n:
-    #     flickr.photos.setMeta(photo_id=image.id, title=title)
+    # flickr.photos.setMeta(photo_id=image.id, title="Semnoz @ Bellecombe-en-Bauges")
 
     info = Addict(flickr.photos.getInfo(photo_id=image.id))
     for tag in info.photo.tags.tag:
-        if tag["raw"] == "aiguille de montaubert":
+        if tag["raw"] == "73 savoie":
             tag_id_to_remove = tag.id
             resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-    #         flickr.photos.addTags(photo_id=image.id, tags='"saint-jeoire"')
+        if tag["raw"] == "alleves":
+            tag_id_to_remove = tag.id
+            resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+
+        flickr.photos.addTags(
+            photo_id=image.id, tags='"73","savoie","bellecombe-en-bauges"'
+        )
 
     # incluide photo with end_id in processing
     if end_id is not None and image.id == end_id:

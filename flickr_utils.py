@@ -22,13 +22,14 @@ def get_albums(flickr):
     )
 
 
-def get_photos(flickr, album_id, extras="date_taken,url_o"):
+def get_photos(flickr, album_id, extras="date_taken,url_o", **kwargs):
     return all_pages(
         "photoset",
         "photo",
         flickr.photosets.getPhotos,
         photoset_id=album_id,
         extras=extras,
+        **kwargs,
     )
 
 

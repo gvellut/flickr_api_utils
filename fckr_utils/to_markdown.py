@@ -8,8 +8,12 @@ from api_auth import auth_flickr
 
 from . import hugo_lib as hug
 
-POSTS_DIR = "/Users/guilhem/Documents/projects/github/website/hugo_project/content/post"
-URL_FILEPATH = "/Users/guilhem/Documents/projects/github/website/flickr_gen/urls.txt"
+POSTS_DIR = (
+    "/Users/guilhem/Documents/projects/github/blog-vellut.com/hugo_project/content/post"
+)
+URL_FILEPATH = (
+    "/Users/guilhem/Documents/projects/github/blog-vellut.com/flickr_gen/urls.txt"
+)
 
 
 class DuplicateFlickrPostError(Exception):

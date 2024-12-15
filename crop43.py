@@ -6,6 +6,7 @@ import piexif
 from PIL import ExifTags, Image
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -14,9 +15,14 @@ logging.basicConfig(level=logging.INFO)
 def main(input_folder, output_folder):
     os.makedirs(output_folder, exist_ok=True)
     count = 0
-    for filename in os.listdir(input_folder):
+
+    if not click.confirm(f"Crop to {output_folder}. Confirm?"):
+        print("Aborted by user")
+        exit(1)
+
+    for filename in sorted(list(os.listdir(input_folder))):
         if filename.lower().endswith(".jpg") or filename.lower().endswith(".jpeg"):
-            logging.info(f"Processing file: {filename}")
+            logger.info(f"Processing file: {filename}")
             img_path = os.path.join(input_folder, filename)
             output_path = os.path.join(output_folder, filename)
             crop_image(img_path, output_path)
