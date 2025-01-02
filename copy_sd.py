@@ -1,3 +1,4 @@
+from collections import namedtuple
 from datetime import datetime, timedelta
 import os
 import shutil
@@ -18,6 +19,8 @@ MEDIA_FOLDER_MAPPING = {
 
 DATE_FMT = "%Y%m%d"
 OUTPUT_DATE_FMT = DATE_FMT
+
+PhotoVolume = namedtuple("PhotoVolume", "name path")
 
 # TODO remove the multiple volumes and date array: makes code more complex and is not
 # actually used
@@ -41,10 +44,10 @@ def date_to_str(d):
     return d.isoformat()
 
 
-def dirname_with_date(parent_folder, name, dates):
-    if isinstance(dates[0], DateRange):
+def dirname_with_date(parent_folder, name, f_date):
+    if isinstance(f_date, DateRange):
         # all the same anyway
-        date_r = dates[0]
+        date_r = f_date
         if date_r.end:
             f_date = date_r.end
         elif date_r.start:
@@ -52,47 +55,47 @@ def dirname_with_date(parent_folder, name, dates):
         else:
             # today
             f_date = datetime.now().date()
-    else:
-        # can be different if L was used
-        f_date = min(dates)
+
     date_s = f_date.strftime(OUTPUT_DATE_FMT)
     output_folder = os.path.join(parent_folder, f"{date_s}_{name}")
 
     return output_folder
 
 
-def to_dates(date_s, volumes):
+def to_dates(date_s, volume: PhotoVolume):
     if date_s == "TD":
-        # same date for all volumes
-        return [datetime.now().date()] * len(volumes)
+        return datetime.now().date()
 
     if date_s == "YD":
-        return [datetime.now().date() - timedelta(days=1)] * len(volumes)
+        return datetime.now().date() - timedelta(days=1)
 
     if date_s == "YD2":
-        return [datetime.now().date() - timedelta(days=2)] * len(volumes)
+        return datetime.now().date() - timedelta(days=2)
 
     if date_s == "YD3":
-        return [datetime.now().date() - timedelta(days=3)] * len(volumes)
+        return datetime.now().date() - timedelta(days=3)
 
     if date_s == "L":
         # L for latest
-        dates = [find_latest_date(v) for v in volumes]
-        return dates
+        return find_latest_date(volume.path)
 
     if date_s == "L2":
-        dates = [find_latest_date(v, rank=1) for v in volumes]
-        return dates
+        return find_latest_date(volume.path, rank=1)
 
     if date_s == "L3":
-        dates = [find_latest_date(v, rank=2) for v in volumes]
-        return dates
+        return find_latest_date(volume.path, rank=2)
 
     if "-" in date_s:
-        date_range = [parse_date_range(date_s)] * len(volumes)
-        return date_range
+        return parse_date_range(date_s)
 
-    return [datetime.strptime(date_s, DATE_FMT).date()] * len(volumes)
+    # may return multiple dates
+    prefix = "since:"
+    if date_s.startswith(prefix):
+        date_s = date_s[len(prefix) :]
+        date_since = datetime.strptime(date_s, "%Y%m%d").date()
+        return filter_after(find_all_dates(volume.path), date_since)
+
+    return datetime.strptime(date_s, DATE_FMT).date()
 
 
 def parse_date_range(date_range_str):
@@ -107,8 +110,14 @@ def parse_date_range(date_range_str):
     return DateRange(start_date, end_date)
 
 
-def find_latest_date(volume, rank=0):
-    volume_path = volume[1]
+def find_latest_date(volume_path, rank=0):
+    dates = find_all_dates(volume_path)
+    if not dates:
+        return None
+    return dates[rank]
+
+
+def find_all_dates(volume_path):
     dates = []
     for root, _, filenames in os.walk(volume_path):
         for filename in filenames:
@@ -120,18 +129,22 @@ def find_latest_date(volume, rank=0):
     if not dates:
         return None
     dates = list(set(dates))
-    return sorted(dates, reverse=True)[rank]
+    return sorted(dates, reverse=True)
 
 
-def get_volumes(media):
+def filter_after(dates, date_after):
+    return [d for d in dates if d > date_after]
+
+
+def get_volume(media):
     volumes_path = "/Volumes"
     volumes = os.listdir(volumes_path)
 
-    return [
-        (volume, os.path.join(volumes_path, volume))
-        for volume in volumes
-        if volume in media
-    ]
+    for volume in volumes:
+        if volume in media:
+            return PhotoVolume(volume, os.path.join(volumes_path, volume))
+
+    return None
 
 
 def eject_volume(volume_name):
@@ -152,27 +165,26 @@ def filter_by_date(image_date, date_):
     return image_date == date_
 
 
-def copy_to_volumes(volumes, output_folder_base, dates):
-    os.makedirs(output_folder_base, exist_ok=True)
+def copy_to_folder(volume: PhotoVolume, folder_base, f_date):
+    os.makedirs(folder_base, exist_ok=True)
 
-    for i, (volume, volume_path) in enumerate(volumes):
-        media_folder = MEDIA_FOLDER_MAPPING[volume]
-        output_folder = os.path.join(output_folder_base, media_folder)
-        os.makedirs(output_folder, exist_ok=True)
+    media_folder = MEDIA_FOLDER_MAPPING[volume.name]
+    output_folder = os.path.join(folder_base, media_folder)
+    os.makedirs(output_folder, exist_ok=True)
 
-        counter = 0
-        for root, _, filenames in os.walk(volume_path):
-            for filename in filenames:
-                if not filter_relevant_image(filename):
-                    continue
-                file_path = os.path.join(root, filename)
-                last_modified_date = datetime.fromtimestamp(os.path.getmtime(file_path))
+    counter = 0
+    for root, _, filenames in os.walk(volume.path):
+        for filename in filenames:
+            if not filter_relevant_image(filename):
+                continue
+            file_path = os.path.join(root, filename)
+            last_modified_date = datetime.fromtimestamp(os.path.getmtime(file_path))
 
-                if filter_by_date(last_modified_date.date(), dates[i]):
-                    counter += 1
-                    if counter % 20 == 0:
-                        print(f"Copy #{counter}: {file_path}")
-                    shutil.copy2(file_path, output_folder)
+            if filter_by_date(last_modified_date.date(), f_date):
+                counter += 1
+                if counter % 20 == 0:
+                    print(f"Copy #{counter}: {file_path}")
+                shutil.copy2(file_path, output_folder)
 
 
 @click.command()
@@ -197,41 +209,45 @@ def copy_to_volumes(volumes, output_folder_base, dates):
     is_flag=True,
 )
 def main(name, date_spec, is_eject):
-    volumes = get_volumes(MEDIA)
+    volume = get_volume(MEDIA)
 
-    if not volumes:
+    if not volume:
         print("No relevant SD card. Volume not renamed?")
         exit(1)
 
-    dates = to_dates(date_spec, volumes)
+    dates = to_dates(date_spec, volume)
+    if not isinstance(dates, list):
+        dates = [dates]
     if not dates:
-        # if used with L : need the SD card to be available
-        # to_dates will be None if not the case
         print("No image found: Is the SD card inserted and mounted?")
         exit(1)
-    output_folder_base = dirname_with_date(output_parent_folder, name, dates)
 
-    volumes_s = ", ".join((v[0] for v in volumes))
-    volume_mapping = [MEDIA_FOLDER_MAPPING[volume[0]] for volume in volumes]
-    volume_mapping_s = ", ".join(volume_mapping)
-    dates_s = ", ".join([date_to_str(d) for d in dates])
+    output_folder_base = [
+        dirname_with_date(output_parent_folder, name, f_date) for f_date in dates
+    ]
+    volume_mapping = MEDIA_FOLDER_MAPPING[volume.name]
+    text_folder = ", ".join(output_folder_base)
+    text_date = ", ".join([date_to_str(d) for d in dates])
+
     if not click.confirm(
-        f"The images will be copied from : {volumes_s} to {output_folder_base} "
-        f"[folders {volume_mapping_s}] - (dates: {dates_s})\nConfirm?"
+        f"The images will be copied from : {volume_mapping} to {text_folder} "
+        f"(dates: {text_date})\nConfirm?"
     ):
         print("Aborted by user")
         exit(1)
 
-    copy_to_volumes(volumes, output_folder_base, dates)
+    for i, f_date in enumerate(dates):
+        folder_base = output_folder_base[i]
+        print(f"Copy to {folder_base} (date: {f_date}) ...")
+        copy_to_folder(volume, folder_base, f_date)
 
-    for volume in volumes:
-        try:
-            if is_eject:
-                print(f"Ejecting {volume[1]} ...")
-                eject_volume(volume[0])
-        except Exception:
-            print(f"Error ejecting {volume}")
-            traceback.print_exc()
+    try:
+        if is_eject:
+            print(f"Ejecting {volume[0]} ...")
+            eject_volume(volume[0])
+    except Exception:
+        print(f"Error ejecting {volume[0]}")
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
