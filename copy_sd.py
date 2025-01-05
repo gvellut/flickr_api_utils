@@ -92,6 +92,8 @@ def to_dates(date_s, volume: PhotoVolume):
     prefix = "since:"
     if date_s.startswith(prefix):
         date_s = date_s[len(prefix) :]
+        # only first 8 characters in case title copied
+        date_s = date_s[:8]
         date_since = datetime.strptime(date_s, "%Y%m%d").date()
         return filter_after(find_all_dates(volume.path), date_since)
 
@@ -222,9 +224,11 @@ def main(name, date_spec, is_eject):
         print("No image found: Is the SD card inserted and mounted?")
         exit(1)
 
+    dates = sorted(dates)
     output_folder_base = [
         dirname_with_date(output_parent_folder, name, f_date) for f_date in dates
     ]
+
     volume_mapping = MEDIA_FOLDER_MAPPING[volume.name]
     text_folder = ", ".join(output_folder_base)
     text_date = ", ".join([date_to_str(d) for d in dates])
