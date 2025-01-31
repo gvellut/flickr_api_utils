@@ -1,6 +1,7 @@
 from collections import namedtuple
 from datetime import datetime, timedelta
 import os
+import re
 import shutil
 import subprocess
 import traceback
@@ -62,6 +63,18 @@ def dirname_with_date(parent_folder, name, f_date):
     return output_folder
 
 
+def dirs_with_date(folder):
+    date_pattern = re.compile(r"^\d{8}_")
+    items = os.listdir(folder)
+    date_folders = [
+        item
+        for item in items
+        if os.path.isdir(os.path.join(folder, item)) and date_pattern.match(item)
+    ]
+
+    return sorted(date_folders, reverse=True)
+
+
 def to_dates(date_s, volume: PhotoVolume):
     if date_s == "TD":
         return datetime.now().date()
@@ -92,6 +105,12 @@ def to_dates(date_s, volume: PhotoVolume):
     prefix = "since:"
     if date_s.startswith(prefix):
         date_s = date_s[len(prefix) :]
+        if date_s == "last":
+            dirs = dirs_with_date(output_parent_folder)
+            # replace with last folder in order
+            date_s = dirs[0]
+            print(f"last => {date_s}")
+
         # only first 8 characters in case title copied
         date_s = date_s[:8]
         date_since = datetime.strptime(date_s, "%Y%m%d").date()
