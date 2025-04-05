@@ -44,6 +44,8 @@ flickrapi.set_log_level(logging.CRITICAL)
 logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
 logging.getLogger("flickrapi.auth.OAuthFlickrInterface").disabled = True
 
+PRINT_API_ERROR = True
+
 
 class ValidationError(Exception):
     pass
@@ -174,12 +176,15 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
             print("Aborted by user")
             exit(1)
 
+    # so close approximate value of date taken start from the POV of Flickr
+    now_ts = datetime.now().timestamp()
+
     files_to_upload = order_by_date(files_to_upload)
 
     photo_uploaded_ids = _upload_photos(
         flickr, upload_options, files_to_upload, parallel
     )
-    _set_date_posted(flickr, photo_uploaded_ids, QUICK_CONCURRENCY)
+    _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
     _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
 
 
@@ -229,7 +234,7 @@ def _print_album_options(upload_options):
         print("Not adding to album")
 
 
-def _set_date_posted(flickr, photos_uploaded, parallel):
+def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
     # so the photos appear in order in the photostream
     print("Resetting upload dates...")
 
@@ -244,7 +249,7 @@ def _set_date_posted(flickr, photos_uploaded, parallel):
         msg = "Error during 'Resetting upload dates': " + str(ex.args[0])
         progress_bar.write(msg)
 
-    now_ts = generate_timestamps(len(photos_uploaded))
+    now_ts = generate_timestamps(now_ts, len(photos_uploaded))
     with Pool(parallel) as pool:
         for photo_id, timestamp in zip(photos_uploaded, now_ts):
             pool.apply_async(
@@ -402,15 +407,24 @@ def date_taken_key(x):
     return dt_original.decode("ascii")
 
 
-def generate_timestamps(num_photos):
+def generate_timestamps(now_ts, num_photos):
+    # well in the past so no overlap with actual upload time : bug in Flickr API will
+    # duplicate some uploads => easier to remove manually after the fact if the case
+    # in the past instead of in the future so no error from Flickr ie
+    # 6: Invalid Date Taken
     # should be fine if no multiple uploads at the same time
     # photos take > 1 sec (unless parallel very high)
-    now_ts = int(datetime.now().timestamp()) - num_photos
+    now_ts -= 3 * num_photos
     timestamps = [now_ts + i for i in range(num_photos)]
     return timestamps
 
 
-def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=15):
+# timeout was set to 15 but sometimes recently since end of 2024
+# Error calling Flickr API: HTTPSConnectionPool(host='up.flickr.com', port=443):
+# Read timed out. (read timeout=15)
+# Still photo is uploaded. So not processed on Flickr side?
+# Try to set to 45
+def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=45):
     title = get_title(xmp_root)
     tags = get_tags(xmp_root)
     flickr_tags = format_tags(tags)
@@ -475,6 +489,12 @@ def retry(num_retries, func, error_callack=None):
         try:
             return func()
         except Exception as ex:
+            # put error : case of mulitple uploads : not sure if silent error in Flickr
+            # API or case of an error is returned but the photo is still uploaded
+            # check
+            # TODO see if formatting problem with progress bar
+            if PRINT_API_ERROR:
+                logger.warning(f"Error calling Flickr API: {ex}\nRetry ...")
             if error_callack:
                 return_now, raise_now = error_callack(ex)
                 if return_now:

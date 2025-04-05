@@ -102,9 +102,8 @@ def to_dates(date_s, volume: PhotoVolume):
         return parse_date_range(date_s)
 
     # may return multiple dates
-    prefix = "since:"
-    if date_s.startswith(prefix):
-        date_s = date_s[len(prefix) :]
+    if is_since(date_s):
+        date_s = date_s[len(PREFIX_SINCE) :]
         if date_s == "last":
             dirs = dirs_with_date(output_parent_folder)
             # replace with last folder in order
@@ -114,9 +113,19 @@ def to_dates(date_s, volume: PhotoVolume):
         # only first 8 characters in case title copied
         date_s = date_s[:8]
         date_since = datetime.strptime(date_s, "%Y%m%d").date()
-        return filter_after(find_all_dates(volume.path), date_since)
+        filtered = filter_after(find_all_dates(volume.path), date_since)
+        if not filtered:
+            print("No photo since last date.")
+        return filtered
 
     return datetime.strptime(date_s, DATE_FMT).date()
+
+
+PREFIX_SINCE = "since:"
+
+
+def is_since(date_s):
+    return date_s.startswith(PREFIX_SINCE)
 
 
 def parse_date_range(date_range_str):
