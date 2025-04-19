@@ -11,6 +11,7 @@ from attrs import define
 import click
 import flickrapi
 import piexif
+from requests import ReadTimeout
 from tqdm import tqdm
 
 from api_auth import auth_flickr
@@ -44,7 +45,7 @@ flickrapi.set_log_level(logging.CRITICAL)
 logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
 logging.getLogger("flickrapi.auth.OAuthFlickrInterface").disabled = True
 
-PRINT_API_ERROR = True
+PRINT_API_ERROR = False
 
 
 class ValidationError(Exception):
@@ -217,12 +218,20 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
     if photos_uploaded:
         print(f"{len(photos_uploaded)} files uploaded")
 
+    # print the photos with a readtimeout error : may be duplicated on Flickr =>
+    # uploaded successfully but error returned from the API
+    # display path so is visible which ones so can delete manually (no photo ID
+    # available so has to be done manually)
+    timeout_photos = [os.path.basename(x[2]) for x in photos_uploaded if x[3]]
+    if timeout_photos:
+        print(f"{len(timeout_photos)} photo timeouts : {','.join(timeout_photos)}")
+
     # parallel upload may have changed the order : the first item of the tuple is
     # the rank in the original order
     photos_uploaded = sorted(photos_uploaded, key=lambda x: x[0])
-    photos_uploaded = [x[1] for x in photos_uploaded]
+    photo_ids_uploaded = [x[1] for x in photos_uploaded]
 
-    return photos_uploaded
+    return photo_ids_uploaded
 
 
 def _print_album_options(upload_options):
@@ -423,11 +432,20 @@ def generate_timestamps(now_ts, num_photos):
 # Error calling Flickr API: HTTPSConnectionPool(host='up.flickr.com', port=443):
 # Read timed out. (read timeout=15)
 # Still photo is uploaded. So not processed on Flickr side?
-# Try to set to 45
-def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=45):
+# Try to set to 15
+def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=15):
     title = get_title(xmp_root)
     tags = get_tags(xmp_root)
     flickr_tags = format_tags(tags)
+
+    # only count once even if multiple timeouts
+    has_timeout = False
+
+    def error_callback(ex):
+        if isinstance(ex, ReadTimeout):
+            nonlocal has_timeout
+            has_timeout = True
+        return False, False
 
     def upload():
         # for some reason the default JSON format is not working, only XML
@@ -443,9 +461,11 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
         return resp
 
     try:
-        resp = retry(API_RETRIES, upload)
+        resp = retry(API_RETRIES, upload, error_callack=error_callback)
         photo_id = resp.find("photoid").text
-        return order, photo_id
+        # return filepath since inputs can be missing from outputs if error so not
+        # aligned
+        return order, photo_id, filepath, has_timeout
     except Exception as e:
         msg = f"Error uploading file {filepath}: {e}"
         raise UploadError(msg)
