@@ -54,7 +54,9 @@ def get_photostream_photos(flickr, start_photo_id, end_photo_id, limit=1000):
     date_e = int(info_e.photo.dates.posted)
 
     if date_e < date_s:
-        date_s, date_e = date_e, date_s
+        raise ValueError(
+            f"Date of start {start_photo_id} is after date of end {end_photo_id}"
+        )
 
     counter = 0
     for photos in all_pages_generator(
