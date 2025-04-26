@@ -41,8 +41,8 @@ for image in images:
     ).isoformat()
     print(f"Processing {image.id} posted={iso_date_string}...")
     for tag in info.photo.tags.tag:
-        if tag["raw"] == "hiver2024":
+        if tag["raw"] == "november":
             tag_id_to_remove = tag.id
             resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-    flickr.photos.addTags(photo_id=image.id, tags='"hiver","2024"')
+    flickr.photos.addTags(photo_id=image.id, tags='"december"')
