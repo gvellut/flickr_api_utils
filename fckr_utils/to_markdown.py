@@ -53,7 +53,7 @@ def to_markdown():
 
 def read_urls(filepath):
     lines = []
-    with open(filepath, "r") as file:
+    with open(filepath) as file:
         for line in file:
             stripped_line = line.strip()
             if stripped_line:

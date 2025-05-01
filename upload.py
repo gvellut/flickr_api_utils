@@ -17,12 +17,12 @@ from tqdm import tqdm
 from api_auth import auth_flickr
 from flickr_utils import get_photos
 from xmp_utils import (
+    NoXMPPacketFound,
     extract_xmp,
     get_document_id,
     get_label,
     get_tags,
     get_title,
-    NoXMPPacketFound,
     parse_xmp,
 )
 
@@ -431,9 +431,11 @@ def generate_timestamps(now_ts, num_photos):
 # timeout was set to 15 but sometimes recently since end of 2024
 # Error calling Flickr API: HTTPSConnectionPool(host='up.flickr.com', port=443):
 # Read timed out. (read timeout=15)
-# Still photo is uploaded. So not processed on Flickr side?
-# Try to set to 15
-def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=15):
+# Still photo is uploaded.
+# No change with timeout set to 45 => To correct : check the last upload since no id ?
+# how to search # if multiple threads
+# try 30: but already tried, no change
+def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=30):
     title = get_title(xmp_root)
     tags = get_tags(xmp_root)
     flickr_tags = format_tags(tags)

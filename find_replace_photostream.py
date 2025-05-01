@@ -20,8 +20,8 @@ def local_tz_fixed():
 flickr = auth_flickr()
 
 
-start_id = "54476911917"
-end_id = "54476912292"
+start_id = "54477500806"
+end_id = "54477781353"
 
 images = get_photostream_photos(flickr, start_id, end_id)
 
@@ -30,10 +30,10 @@ for image in images:
     # and include all photos between start_id and end_id
     # so not need to check if processing
 
-    # title, n = re.subn("None", "Annecy", image.title)
-    # if n:
-    #     print("Replacing...")
-    #     flickr.photos.setMeta(photo_id=image.id, title=title)
+    title, n = re.subn("None", "Annecy", image.title)
+    if n:
+        print("Replacing...")
+        flickr.photos.setMeta(photo_id=image.id, title=title)
 
     info = Addict(flickr.photos.getInfo(photo_id=image.id))
     iso_date_string = datetime.datetime.fromtimestamp(
@@ -41,8 +41,8 @@ for image in images:
     ).isoformat()
     print(f"Processing {image.id} posted={iso_date_string}...")
     for tag in info.photo.tags.tag:
-        if tag["raw"] == "november":
+        if tag["raw"] == "None":
             tag_id_to_remove = tag.id
             resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-    flickr.photos.addTags(photo_id=image.id, tags='"december"')
+    flickr.photos.addTags(photo_id=image.id, tags='"annecy","savoie","march","2025"')

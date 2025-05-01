@@ -63,7 +63,7 @@ def dirname_with_date(parent_folder, name, f_date):
     return output_folder
 
 
-def dirs_with_date(folder):
+def dirs_with_date(folder, subfolder=None):
     date_pattern = re.compile(r"^\d{8}_")
     items = os.listdir(folder)
     date_folders = [
@@ -71,6 +71,14 @@ def dirs_with_date(folder):
         for item in items
         if os.path.isdir(os.path.join(folder, item)) and date_pattern.match(item)
     ]
+
+    if subfolder:
+        # only keep the dates with a folder for the SD card inside
+        date_folders = [
+            date_folder
+            for date_folder in date_folders
+            if os.path.isdir(os.path.join(folder, date_folder, subfolder))
+        ]
 
     return sorted(date_folders, reverse=True)
 
@@ -105,7 +113,8 @@ def to_dates(date_s, volume: PhotoVolume):
     if is_since(date_s):
         date_s = date_s[len(PREFIX_SINCE) :]
         if date_s == "last":
-            dirs = dirs_with_date(output_parent_folder)
+            folder_for_sd = MEDIA_FOLDER_MAPPING[volume.name]
+            dirs = dirs_with_date(output_parent_folder, subfolder=folder_for_sd)
             # replace with last folder in order
             date_s = dirs[0]
             print(f"last => {date_s}")

@@ -102,7 +102,7 @@ def show_data(albums):
 
 
 if is_load_from_file and album_file:
-    with open(album_file, "r", encoding="utf-8") as f:
+    with open(album_file, encoding="utf-8") as f:
         albums = [Addict(album) for album in json.load(f)]
 else:
     albums = list(get_albums())
