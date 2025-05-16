@@ -22,11 +22,11 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720318422015")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720326026136")
 images = get_photos(flickr, album.album_id)
 
-start_id = "54095193784"
-end_id = "54093997357"
+start_id = "54511833735"
+end_id = None
 
 is_process = False
 for image in images:
@@ -38,27 +38,25 @@ for image in images:
 
     print(f"Processing {image.id} [{image.title}] ...")
 
-    # title, n = re.subn(
-    #     "None",
-    #     "Entrevernes",
-    #     image.title,
-    # )
-    # if n:
-    # flickr.photos.setMeta(photo_id=image.id, title="Semnoz @ Bellecombe-en-Bauges")
+    title, n = re.subn(
+        r"@La Balme-de-Sillingy",
+        "@ La Balme-de-Sillingy",
+        image.title,
+    )
+    if n:
+        flickr.photos.setMeta(photo_id=image.id, title=title)
 
     info = Addict(flickr.photos.getInfo(photo_id=image.id))
     for tag in info.photo.tags.tag:
-        if tag["raw"] == "73 savoie":
+        if tag["raw"] == "sillingy":
             tag_id_to_remove = tag.id
             resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-        if tag["raw"] == "alleves":
-            tag_id_to_remove = tag.id
-            resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+        # if tag["raw"] == "alleves":
+        #     tag_id_to_remove = tag.id
+        #     resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-        flickr.photos.addTags(
-            photo_id=image.id, tags='"73","savoie","bellecombe-en-bauges"'
-        )
+    flickr.photos.addTags(photo_id=image.id, tags='"la balme-de-sillingy"')
 
     # incluide photo with end_id in processing
     if end_id is not None and image.id == end_id:

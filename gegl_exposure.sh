@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# install exiftoll + gegl with Homebrew
+# install exiftool + gegl with Homebrew
 
 # --- Configuration ---
 INPUT_DIR="/Volumes/CrucialX8/photos/20241225_geneve/gegl"
@@ -8,7 +8,7 @@ OUTPUT_DIR="/Volumes/CrucialX8/photos/20241225_geneve/gegl_exp"
 EXPOSURE_VAL="0.80"
 BLACK_LEVEL_VAL="0.02"
 JPG_QUALITY="90"
-IMAGE_PATTERNS=("*.jpg" "*.jpeg") # Add other types if needed AND if exiftool supports them well
+IMAGE_PATTERNS=("*.jpg" "*.jpeg") 
 # --- End Configuration ---
 
 # --- Check for dependencies ---

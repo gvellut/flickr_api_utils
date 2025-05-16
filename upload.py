@@ -4,6 +4,7 @@ import logging
 from multiprocessing import Pool
 from operator import attrgetter
 import os
+import shutil
 from time import sleep
 
 from addict import Dict as Addict
@@ -33,6 +34,8 @@ UPLOAD_CONCURRENCY = 4
 QUICK_CONCURRENCY = 1
 
 NCOLS = 80
+
+UPLOADED_DIR = "____uploaded"
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -131,6 +134,22 @@ yes_option = click.option(
     help="Do not ask for confirmation",
 )
 
+
+abort_no_metadata_option = click.option(
+    "--abort-no-md",
+    "is_abort_no_detadata",
+    is_flag=True,
+    help="Abort if any file does not have metadata (title and tags)",
+)
+
+
+archive_option = click.option(
+    "--archive",
+    "is_archive",
+    is_flag=True,
+    help="Copy to uploaded folder",
+)
+
 parallel_option = click.option(
     "--parallel",
     default=UPLOAD_CONCURRENCY,
@@ -153,7 +172,11 @@ def cli():
 @album_description_option
 @parallel_option
 @yes_option
-def complete(folder, filter_label, is_yes, parallel, **kwargs):
+@abort_no_metadata_option
+@archive_option
+def complete(
+    folder, filter_label, is_yes, parallel, is_abort_no_detadata, is_archive, **kwargs
+):
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
@@ -165,6 +188,20 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
     files_to_upload = filtered(folder, filter_label)
 
     print(f"{len(files_to_upload)} files to upload")
+
+    empty_metadata = []
+    for file_path, xmp_root in files_to_upload:
+        title = get_title(xmp_root)
+        tags = get_tags(xmp_root)
+
+        if not title or not tags:
+            empty_metadata.append(file_path)
+
+    if empty_metadata:
+        no_metadata = ", ".join(os.path.basename(f) for f in empty_metadata)
+        logger.info(f"Files without metadata: {no_metadata}")
+        if is_abort_no_detadata:
+            raise click.ClickException("Some files have no metadata. Abort!")
 
     _print_album_options(upload_options)
     if upload_options.is_public:
@@ -187,6 +224,22 @@ def complete(folder, filter_label, is_yes, parallel, **kwargs):
     )
     _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
     _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
+
+    if is_archive:
+        _copy_to_uploaded(folder)
+
+
+def _copy_to_uploaded(folder):
+    to_dir = UPLOADED_DIR
+
+    os.makedirs(to_dir, exist_ok=True)
+
+    try:
+        print(f"Archiving '{folder}' to '{to_dir}' ...")
+        shutil.move(folder, to_dir)
+        print(f"Successfully archived '{folder}' to '{to_dir}'.")
+    except Exception as e:
+        logger.error(f"Error archiving '{folder}' to '{to_dir}': {e}")
 
 
 def _upload_photos(flickr, upload_options, files_to_upload, parallel):
