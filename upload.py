@@ -4,6 +4,7 @@ import logging
 from multiprocessing import Pool
 from operator import attrgetter
 import os
+from pathlib import Path
 import shutil
 from time import sleep
 
@@ -35,7 +36,8 @@ QUICK_CONCURRENCY = 1
 
 NCOLS = 80
 
-UPLOADED_DIR = "____uploaded"
+UPLOADED_DIR = "/Volumes/CrucialX8/photos/____uploaded"
+BASE_PHOTO_DIR = "/Volumes/CrucialX8/photos/"
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -232,14 +234,23 @@ def complete(
 def _copy_to_uploaded(folder):
     to_dir = UPLOADED_DIR
 
+    # assume is 2012313-.../xs20 =>
+    relpath = os.path.relpath(folder, BASE_PHOTO_DIR)
+    if len(Path(relpath).parts) != 2:
+        print(f"Path {relpath} doesn't fit pattern. Not archiving...")
+        return
+
+    # one level up ie the dir with 20250123_....
+    super_folder = os.path.abspath(os.path.join(folder, ".."))
+
     os.makedirs(to_dir, exist_ok=True)
 
     try:
-        print(f"Archiving '{folder}' to '{to_dir}' ...")
-        shutil.move(folder, to_dir)
-        print(f"Successfully archived '{folder}' to '{to_dir}'.")
+        print(f"Archiving '{super_folder}' to '{to_dir}' ...")
+        shutil.move(super_folder, to_dir)
+        print(f"Successfully archived '{super_folder}' to '{to_dir}'.")
     except Exception as e:
-        logger.error(f"Error archiving '{folder}' to '{to_dir}': {e}")
+        logger.error(f"Error archiving '{super_folder}' to '{to_dir}': {e}")
 
 
 def _upload_photos(flickr, upload_options, files_to_upload, parallel):
