@@ -36,8 +36,8 @@ QUICK_CONCURRENCY = 1
 
 NCOLS = 80
 
-UPLOADED_DIR = "/Volumes/CrucialX8/photos/____uploaded"
 BASE_PHOTO_DIR = "/Volumes/CrucialX8/photos/"
+UPLOADED_DIR = "____uploaded"
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -138,9 +138,10 @@ yes_option = click.option(
 
 
 abort_no_metadata_option = click.option(
-    "--abort-no-md",
-    "is_abort_no_detadata",
+    "--no-abort-no-md",
+    "is_abort_no_metadata",
     is_flag=True,
+    default=True,
     help="Abort if any file does not have metadata (title and tags)",
 )
 
@@ -177,7 +178,7 @@ def cli():
 @abort_no_metadata_option
 @archive_option
 def complete(
-    folder, filter_label, is_yes, parallel, is_abort_no_detadata, is_archive, **kwargs
+    folder, filter_label, is_yes, parallel, is_abort_no_metadata, is_archive, **kwargs
 ):
     flickr = auth_flickr()
 
@@ -201,8 +202,8 @@ def complete(
 
     if empty_metadata:
         no_metadata = ", ".join(os.path.basename(f) for f in empty_metadata)
-        logger.info(f"Files without metadata: {no_metadata}")
-        if is_abort_no_detadata:
+        print(f"Files without metadata: {no_metadata}")
+        if is_abort_no_metadata:
             raise click.ClickException("Some files have no metadata. Abort!")
 
     _print_album_options(upload_options)
@@ -232,12 +233,14 @@ def complete(
 
 
 def _copy_to_uploaded(folder):
-    to_dir = UPLOADED_DIR
+    to_dir = os.path.join(BASE_PHOTO_DIR, UPLOADED_DIR)
+    if not os.path.exists(to_dir) or not os.path.isdir(to_dir):
+        print(f"Path {to_dir} doesn't exist or is not a dir. Abort archiving!")
 
     # assume is 2012313-.../xs20 =>
     relpath = os.path.relpath(folder, BASE_PHOTO_DIR)
     if len(Path(relpath).parts) != 2:
-        print(f"Path {relpath} doesn't fit pattern. Not archiving...")
+        print(f"Path {relpath} doesn't fit pattern. Abort archiving!")
         return
 
     # one level up ie the dir with 20250123_....
@@ -248,7 +251,7 @@ def _copy_to_uploaded(folder):
     try:
         print(f"Archiving '{super_folder}' to '{to_dir}' ...")
         shutil.move(super_folder, to_dir)
-        print(f"Successfully archived '{super_folder}' to '{to_dir}'.")
+        print("Successfully archived!")
     except Exception as e:
         logger.error(f"Error archiving '{super_folder}' to '{to_dir}': {e}")
 
@@ -315,6 +318,8 @@ def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
         desc="Resetting dates...", total=len(photos_uploaded), ncols=NCOLS
     )
 
+    timeout = 5
+
     def _result_callback(result):
         progress_bar.update(1)
 
@@ -333,6 +338,7 @@ def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
                         flickr.photos.setDates,
                         photo_id=photo_id,
                         date_posted=timestamp,
+                        timeout=timeout,
                     ),
                 ),
                 callback=_result_callback,
@@ -614,12 +620,15 @@ def create_album(flickr, upload_options, primary_photo_id):
 
 def add_to_album(flickr, album_id, photo_id):
     try:
+        timeout = 5
+
         # append to existing album
         # add photos to album
         def func():
             flickr.photosets.addPhoto(
                 photoset_id=album_id,
                 photo_id=photo_id,
+                timeout=timeout,
             )
 
         def error_callack(ex: Exception):
