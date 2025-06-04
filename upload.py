@@ -212,6 +212,9 @@ def complete(
     else:
         print("Will keep photos private")
 
+    if is_archive:
+        print("Will copy to archive")
+
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
             print("Aborted by user")
