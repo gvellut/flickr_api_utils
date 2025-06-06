@@ -38,6 +38,8 @@ NCOLS = 80
 
 BASE_PHOTO_DIR = "/Volumes/CrucialX8/photos/"
 UPLOADED_DIR = "____uploaded"
+ZOOM_DIR = "tz95"
+ZOOM_PREFIX = "P"
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -252,6 +254,15 @@ def _copy_to_uploaded(folder):
     os.makedirs(to_dir, exist_ok=True)
 
     try:
+        print(f"Copying zoom photos to '{ZOOM_DIR}' ...")
+        zoom_dir = os.path.join(super_folder, ZOOM_DIR)
+        for item_name in os.listdir(folder):
+            source_item_path = os.path.join(folder, item_name)
+            if os.path.isfile(source_item_path) and item_name.startswith(ZOOM_PREFIX):
+                dest_item_path = os.path.join(zoom_dir, item_name)
+                shutil.move(source_item_path, dest_item_path)
+        print("Sucessfully copied")
+
         print(f"Archiving '{super_folder}' to '{to_dir}' ...")
         shutil.move(super_folder, to_dir)
         print("Successfully archived!")
