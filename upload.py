@@ -254,14 +254,14 @@ def _copy_to_uploaded(folder):
     os.makedirs(to_dir, exist_ok=True)
 
     try:
-        print(f"Copying zoom photos to '{ZOOM_DIR}' ...")
+        print(f"Moving zoom photos to '{ZOOM_DIR}' ...")
         zoom_dir = os.path.join(super_folder, ZOOM_DIR)
         for item_name in os.listdir(folder):
             source_item_path = os.path.join(folder, item_name)
             if os.path.isfile(source_item_path) and item_name.startswith(ZOOM_PREFIX):
                 dest_item_path = os.path.join(zoom_dir, item_name)
                 shutil.move(source_item_path, dest_item_path)
-        print("Sucessfully copied")
+        print("Sucessfully moved")
 
         print(f"Archiving '{super_folder}' to '{to_dir}' ...")
         shutil.move(super_folder, to_dir)
