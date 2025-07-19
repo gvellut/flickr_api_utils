@@ -215,7 +215,7 @@ def complete(
         print("Will keep photos private")
 
     if is_archive:
-        print("Will copy to archive")
+        print("Will move to archive")
 
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
@@ -255,13 +255,18 @@ def _copy_to_uploaded(folder):
 
     try:
         print(f"Moving zoom photos to '{ZOOM_DIR}' ...")
+        has_moved = False
         zoom_dir = os.path.join(super_folder, ZOOM_DIR)
         for item_name in os.listdir(folder):
             source_item_path = os.path.join(folder, item_name)
             if os.path.isfile(source_item_path) and item_name.startswith(ZOOM_PREFIX):
+                has_moved = True
                 dest_item_path = os.path.join(zoom_dir, item_name)
                 shutil.move(source_item_path, dest_item_path)
-        print("Sucessfully moved")
+        if has_moved:
+            print("Sucessfully moved")
+        else:
+            print("Nothing to move")
 
         print(f"Archiving '{super_folder}' to '{to_dir}' ...")
         shutil.move(super_folder, to_dir)
@@ -554,7 +559,7 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
         return order, photo_id, filepath, has_timeout
     except Exception as e:
         msg = f"Error uploading file {filepath}: {e}"
-        raise UploadError(msg)
+        raise UploadError(msg) from e
 
 
 def filtered(folder, filter_label):
@@ -629,7 +634,7 @@ def create_album(flickr, upload_options, primary_photo_id):
         return album_id
     except Exception as e:
         msg = f"Error creating album {upload_options.album_name}: {e}"
-        raise AlbumCreationError(msg)
+        raise AlbumCreationError(msg) from e
 
 
 def add_to_album(flickr, album_id, photo_id):
@@ -657,7 +662,7 @@ def add_to_album(flickr, album_id, photo_id):
 
     except Exception as e:
         msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
-        raise AddToAlbumError(msg)
+        raise AddToAlbumError(msg) from e
 
 
 if __name__ == "__main__":

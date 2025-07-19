@@ -20,8 +20,9 @@ def local_tz_fixed():
 flickr = auth_flickr()
 
 
-start_id = "54496638281"
-end_id = "54496902233"
+start_id = "54619969949"
+# here the end id is mandatory
+end_id = "54620138645"
 
 images = get_photostream_photos(flickr, start_id, end_id)
 
@@ -30,19 +31,21 @@ for image in images:
     # and include all photos between start_id and end_id
     # so not need to check if processing
 
-    # title, n = re.subn("None", "Annecy", image.title)
-    # if n:
-    #     print("Replacing...")
-    #     flickr.photos.setMeta(photo_id=image.id, title=title)
+    print(f"Processing {image.id} [{image.title}] ...")
 
-    info = Addict(flickr.photos.getInfo(photo_id=image.id))
-    iso_date_string = datetime.datetime.fromtimestamp(
-        int(info.photo.dates.posted), tz=local_tz_fixed()
-    ).isoformat()
-    print(f"Processing {image.id} posted={iso_date_string}...")
-    for tag in info.photo.tags.tag:
-        if tag["raw"] == "ruine: chateau":
-            tag_id_to_remove = tag.id
-            resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+    title, n = re.subn("Montagne d'Àge", "Montagne d'Âge", image.title)
+    if n:
+        print("Replacing...")
+        flickr.photos.setMeta(photo_id=image.id, title=title)
 
-    flickr.photos.addTags(photo_id=image.id, tags='"ruine","chateau"')
+    # info = Addict(flickr.photos.getInfo(photo_id=image.id))
+    # iso_date_string = datetime.datetime.fromtimestamp(
+    #     int(info.photo.dates.posted), tz=local_tz_fixed()
+    # ).isoformat()
+    # print(f"Processing {image.id} posted={iso_date_string}...")
+    # for tag in info.photo.tags.tag:
+    #     if tag["raw"] == "may":
+    #         tag_id_to_remove = tag.id
+    #         resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
+
+    # flickr.photos.addTags(photo_id=image.id, tags='"april","fujinon","xf 70 300"')

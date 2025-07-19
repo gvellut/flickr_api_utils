@@ -22,11 +22,11 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720326642993")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720327030036")
 images = get_photos(flickr, album.album_id)
 
-start_id = "54567960303"
-end_id = "54567962288"
+start_id = None  # "54591156149"
+end_id = None  # "54567962288"
 
 is_process = False
 for image in images:
@@ -39,8 +39,8 @@ for image in images:
     print(f"Processing {image.id} [{image.title}] ...")
 
     title, n = re.subn(
-        r"Vierge d'Artemare",
-        "Vierge de Fierloz",
+        r"Le Parc des Jardins de Haute-Savoie - Alpes  ",
+        "Parc des Jardins de Haute-Savoie @ ",
         image.title,
     )
     if n:
