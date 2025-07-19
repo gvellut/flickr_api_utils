@@ -1,0 +1,18 @@
+[project]
+name = "flickr-api-utils"
+version = "0.1.0"
+description = "Flickr API utils"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "addict~=2.4.0",
+    "attrs~=25.3.0",
+    "click~=8.2.0",
+    "flickrapi~=2.4.0",
+    "piexif~=1.1.0",
+    "pillow~=11.3.0",
+    "python-dateutil~=2.8.0",
+    "python-xmp-toolkit~=2.0.0",
+    "toml~=0.10.0",
+    "tqdm~=4.65.0",
+]

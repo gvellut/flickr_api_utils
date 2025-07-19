@@ -280,6 +280,7 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
 
     progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload), ncols=NCOLS)
 
+    # result is tuple : index, photo_id, filepath, has_timeout
     def _result_callback(result):
         photos_uploaded.append(result)
         progress_bar.update(1)

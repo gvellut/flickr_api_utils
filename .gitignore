@@ -8,3 +8,4 @@ __pycache__
 albums.json
 *.xml
 .DS_Store
+prompts
