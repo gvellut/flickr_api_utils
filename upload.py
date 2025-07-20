@@ -1,3 +1,4 @@
+from collections import namedtuple
 from datetime import datetime
 from functools import partial
 import logging
@@ -13,7 +14,6 @@ from attrs import define
 import click
 import flickrapi
 import piexif
-from requests import ReadTimeout
 from tqdm import tqdm
 
 from api_auth import auth_flickr
@@ -53,6 +53,11 @@ logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
 logging.getLogger("flickrapi.auth.OAuthFlickrInterface").disabled = True
 
 PRINT_API_ERROR = False
+
+# seconds
+CHECK_TICKETS_SLEEP = 2
+
+PhotoTicketStatus = namedtuple("PhotoTicketStatus", "status photo_id filepath order")
 
 
 class ValidationError(Exception):
@@ -191,6 +196,8 @@ def complete(
 
     print("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
+    if not files_to_upload:
+        raise click.ClickException("No files to upload. Abort!")
 
     print(f"{len(files_to_upload)} files to upload")
 
@@ -230,11 +237,16 @@ def complete(
     photo_uploaded_ids = _upload_photos(
         flickr, upload_options, files_to_upload, parallel
     )
+    if not photo_uploaded_ids:
+        raise click.ClickException("No files were succesfully uploaded. Abort!")
+
     _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
     _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
 
     if is_archive:
         _copy_to_uploaded(folder)
+
+    print("End!")
 
 
 def _copy_to_uploaded(folder):
@@ -302,21 +314,74 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
 
     progress_bar.close()
 
-    if photos_uploaded:
-        print(f"{len(photos_uploaded)} files uploaded")
+    # all statuses are not known at the beginning
+    # ticket_id: (status, photo_id, filepath, order)
+    photo_status = {}
+    for order, ticket_id, filepath in photos_uploaded:
+        photo_status[ticket_id] = PhotoTicketStatus("incomplete", None, filepath, order)
 
-    # print the photos with a readtimeout error : may be duplicated on Flickr =>
-    # uploaded successfully but error returned from the API
-    # display path so is visible which ones so can delete manually (no photo ID
-    # available so has to be done manually)
-    timeout_photos = [os.path.basename(x[2]) for x in photos_uploaded if x[3]]
-    if timeout_photos:
-        print(f"{len(timeout_photos)} photo timeouts : {','.join(timeout_photos)}")
+    print("Checking ticket statuses...")
+    while True:
+        tickets_to_check = [
+            ticket_id
+            for ticket_id, s in photo_status.items()
+            if s.status == "incomplete"
+        ]
+        if not tickets_to_check:
+            # all uploads failed ?
+            break
 
-    # parallel upload may have changed the order : the first item of the tuple is
+        tickets_string = ",".join(tickets_to_check)
+        resp = flickr.photos.upload.checkTickets(tickets=tickets_string)
+        resp = Addict(resp)
+        ticket_statuses = resp.uploader.ticket
+        if not isinstance(ticket_statuses, list):
+            # if only 1 result, then is not a list
+            ticket_statuses = [ticket_statuses]
+
+        has_incomplete = False
+        for status in ticket_statuses:
+            ticket_id = status.id
+            current_status = photo_status[ticket_id]
+
+            if status.complete == 0:
+                # not finished : do another pass for that ticket
+                has_incomplete = True
+            elif status.complete == 1:
+                # OK
+                photo_id = status.photoid
+                photo_status[ticket_id] = current_status._replace(
+                    status="complete", photo_id=photo_id
+                )
+            elif status.complete == 2:
+                # invalid
+                photo_status[ticket_id] = current_status._replace(
+                    status="invalid",
+                )
+            else:
+                logger.error(f"Unknown status {status.complete}")
+
+        if has_incomplete:
+            sleep(CHECK_TICKETS_SLEEP)
+        else:
+            break
+
+    # parallel upload may have changed the order : the last item of the tuple is
     # the rank in the original order
-    photos_uploaded = sorted(photos_uploaded, key=lambda x: x[0])
-    photo_ids_uploaded = [x[1] for x in photos_uploaded]
+    sorted_statuses = sorted(photo_status.values(), key=attrgetter("order"))
+
+    invalid_photos = [
+        os.path.basename(s.filepath) for s in sorted_statuses if s.status == "invalid"
+    ]
+    if invalid_photos:
+        print(
+            f"{len(invalid_photos)} files not processed by Flickr : "
+            f"{','.join(invalid_photos)}"
+        )
+
+    photo_ids_uploaded = [s.photo_id for s in sorted_statuses if s.status == "complete"]
+    if photo_ids_uploaded:
+        print(f"{len(photo_ids_uploaded)} files uploaded")
 
     return photo_ids_uploaded
 
@@ -518,7 +583,8 @@ def generate_timestamps(now_ts, num_photos):
     return timestamps
 
 
-# timeout was set to 15 but sometimes recently since end of 2024
+# Use async for upload : check if problem solved :
+# => timeout was set to 15 but sometimes recently since end of 2024
 # Error calling Flickr API: HTTPSConnectionPool(host='up.flickr.com', port=443):
 # Read timed out. (read timeout=15)
 # Still photo is uploaded.
@@ -530,15 +596,6 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
     tags = get_tags(xmp_root)
     flickr_tags = format_tags(tags)
 
-    # only count once even if multiple timeouts
-    has_timeout = False
-
-    def error_callback(ex):
-        if isinstance(ex, ReadTimeout):
-            nonlocal has_timeout
-            has_timeout = True
-        return False, False
-
     def upload():
         # for some reason the default JSON format is not working, only XML
         # so ask for etree for parsing
@@ -549,15 +606,16 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
             is_public=int(upload_options.is_public),
             format="etree",
             timeout=timeout,
+            **{"async": 1},
         )
         return resp
 
     try:
-        resp = retry(API_RETRIES, upload, error_callack=error_callback)
-        photo_id = resp.find("photoid").text
+        resp = retry(API_RETRIES, upload)
+        ticket_id = resp.find("ticketid").text
         # return filepath since inputs can be missing from outputs if error so not
         # aligned
-        return order, photo_id, filepath, has_timeout
+        return order, ticket_id, filepath
     except Exception as e:
         msg = f"Error uploading file {filepath}: {e}"
         raise UploadError(msg) from e
@@ -667,4 +725,9 @@ def add_to_album(flickr, album_id, photo_id):
 
 
 if __name__ == "__main__":
-    cli()
+    try:
+        cli()
+    except click.exceptions.Abort:
+        # Click raises this on Ctrl+C, and it prints "Aborted!".
+        # We can pass to let the script exit cleanly.
+        pass
