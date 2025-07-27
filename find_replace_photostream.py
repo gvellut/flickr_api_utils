@@ -11,7 +11,7 @@ FlickrAlbum = namedtuple("FlickrAlbum", "album_id url")
 
 
 def local_tz_fixed():
-    now_local_aware = datetime.datetime.now(datetime.timezone.utc).astimezone()
+    now_local_aware = datetime.datetime.now(datetime.UTC).astimezone()
     local_offset_timedelta = now_local_aware.utcoffset()
     local_tz = datetime.timezone(local_offset_timedelta)
     return local_tz

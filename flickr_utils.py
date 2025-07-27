@@ -46,7 +46,7 @@ def all_pages_generator(page_elem, iter_elem, func, *args, **kwargs):
 
 
 # TODO more options for stream
-def get_photostream_photos(flickr, start_photo_id, end_photo_id, limit=1000):
+def get_photostream_photos(flickr, start_photo_id, end_photo_id, limit=1000, **kwargs):
     info_s = Addict(flickr.photos.getInfo(photo_id=start_photo_id))
     # UNIX timestamp
     date_s = int(info_s.photo.dates.posted)
@@ -67,6 +67,7 @@ def get_photostream_photos(flickr, start_photo_id, end_photo_id, limit=1000):
         min_upload_date=date_s,
         max_upload_date=date_e,
         sort="date-posted-asc",
+        **kwargs,
     ):
         for photo in photos:
             yield photo

@@ -1,5 +1,7 @@
 from collections import namedtuple
-from datetime import datetime
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+from enum import Enum, auto
 from functools import partial
 import logging
 from multiprocessing import Pool
@@ -17,7 +19,7 @@ import piexif
 from tqdm import tqdm
 
 from api_auth import auth_flickr
-from flickr_utils import get_photos
+from flickr_utils import all_pages_generator, get_photos
 from xmp_utils import (
     NoXMPPacketFound,
     extract_xmp,
@@ -41,6 +43,12 @@ UPLOADED_DIR = "____uploaded"
 ZOOM_DIR = "tz95"
 ZOOM_PREFIX = "P"
 
+PRINT_API_ERROR = False
+
+# seconds
+CHECK_TICKETS_SLEEP = 3
+MAX_NUM_CHECKS = 10
+
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
@@ -51,11 +59,6 @@ flickrapi.set_log_level(logging.CRITICAL)
 # log outputs HTML error page for 500 errors + 504
 logging.getLogger("flickrapi.auth.OAuthTokenHTTPServer").disabled = True
 logging.getLogger("flickrapi.auth.OAuthFlickrInterface").disabled = True
-
-PRINT_API_ERROR = False
-
-# seconds
-CHECK_TICKETS_SLEEP = 2
 
 PhotoTicketStatus = namedtuple("PhotoTicketStatus", "status photo_id filepath order")
 
@@ -74,6 +77,12 @@ class AlbumCreationError(Exception):
 
 class AddToAlbumError(Exception):
     pass
+
+
+class TicketStatusEnum(Enum):
+    INCOMPLETE = auto()
+    COMPLETE = auto()
+    INVALID = auto()
 
 
 @define
@@ -230,17 +239,19 @@ def complete(
             exit(1)
 
     # so close approximate value of date taken start from the POV of Flickr
-    now_ts = datetime.now().timestamp()
+    now_ts = int(datetime.now().timestamp())
 
     files_to_upload = order_by_date(files_to_upload)
 
     photo_uploaded_ids = _upload_photos(
-        flickr, upload_options, files_to_upload, parallel
+        flickr, now_ts, upload_options, files_to_upload, parallel
     )
     if not photo_uploaded_ids:
         raise click.ClickException("No files were succesfully uploaded. Abort!")
 
     _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
+    if upload_options.is_public:
+        _set_public(flickr, now_ts, photo_uploaded_ids, parallel)
     _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
 
     if is_archive:
@@ -287,7 +298,7 @@ def _copy_to_uploaded(folder):
         logger.error(f"Error archiving '{super_folder}' to '{to_dir}': {e}")
 
 
-def _upload_photos(flickr, upload_options, files_to_upload, parallel):
+def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
     photos_uploaded = []
 
     progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload), ncols=NCOLS)
@@ -318,14 +329,17 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
     # ticket_id: (status, photo_id, filepath, order)
     photo_status = {}
     for order, ticket_id, filepath in photos_uploaded:
-        photo_status[ticket_id] = PhotoTicketStatus("incomplete", None, filepath, order)
+        photo_status[ticket_id] = PhotoTicketStatus(
+            TicketStatusEnum.INCOMPLETE, None, filepath, order
+        )
 
+    num_checks = 0
     print("Checking ticket statuses...")
     while True:
         tickets_to_check = [
             ticket_id
             for ticket_id, s in photo_status.items()
-            if s.status == "incomplete"
+            if s.status == TicketStatusEnum.INCOMPLETE
         ]
         if not tickets_to_check:
             # all uploads failed ?
@@ -339,29 +353,32 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
             # if only 1 result, then is not a list
             ticket_statuses = [ticket_statuses]
 
-        has_incomplete = False
+        incomplete_photos = False
         for status in ticket_statuses:
             ticket_id = status.id
             current_status = photo_status[ticket_id]
 
             if status.complete == 0:
                 # not finished : do another pass for that ticket
-                has_incomplete = True
+                incomplete_photos = True
             elif status.complete == 1:
                 # OK
                 photo_id = status.photoid
                 photo_status[ticket_id] = current_status._replace(
-                    status="complete", photo_id=photo_id
+                    status=TicketStatusEnum.COMPLETE, photo_id=photo_id
                 )
             elif status.complete == 2:
                 # invalid
                 photo_status[ticket_id] = current_status._replace(
-                    status="invalid",
+                    status=TicketStatusEnum.INVALID,
                 )
             else:
                 logger.error(f"Unknown status {status.complete}")
 
-        if has_incomplete:
+        if incomplete_photos:
+            num_checks += 1
+            if num_checks >= MAX_NUM_CHECKS:
+                break
             sleep(CHECK_TICKETS_SLEEP)
         else:
             break
@@ -371,19 +388,75 @@ def _upload_photos(flickr, upload_options, files_to_upload, parallel):
     sorted_statuses = sorted(photo_status.values(), key=attrgetter("order"))
 
     invalid_photos = [
-        os.path.basename(s.filepath) for s in sorted_statuses if s.status == "invalid"
+        os.path.basename(s.filepath)
+        for s in sorted_statuses
+        if s.status == TicketStatusEnum.INVALID
     ]
     if invalid_photos:
         print(
-            f"{len(invalid_photos)} files not processed by Flickr : "
+            f"{len(invalid_photos)} files not uploaded to Flickr : "
             f"{','.join(invalid_photos)}"
         )
 
-    photo_ids_uploaded = [s.photo_id for s in sorted_statuses if s.status == "complete"]
+    # check if some are still incomplete. Bug Flickr API similar to the sync upload
+    # issue => incomplete but image still uploaded correctly
+    incomplete_photos = [
+        s for s in sorted_statuses if s.status == TicketStatusEnum.INCOMPLETE
+    ]
+    force_deal_with_complete = False
+    if incomplete_photos:
+        print(
+            f"{len(incomplete_photos)} files marked as not complete by Flickr but "
+            f"probably uploaded : {','.join(incomplete_photos)}"
+        )
+        photo_ids_uploaded, force_deal_with_complete = _get_uploaded_photos_indirect(
+            flickr, len(files_to_upload), now_ts
+        )
+
+    if not incomplete_photos or force_deal_with_complete:
+        photo_ids_uploaded = [
+            s.photo_id for s in sorted_statuses if s.status == TicketStatusEnum.COMPLETE
+        ]
+
     if photo_ids_uploaded:
         print(f"{len(photo_ids_uploaded)} files uploaded")
 
     return photo_ids_uploaded
+
+
+def _get_uploaded_photos_indirect(
+    flickr, number: int, since_time: datetime, margin_s=10
+):
+    # margin if time in Flick different from local
+    date_s = since_time - margin_s
+
+    photos_uploaded = []
+    # sort order default to date-posted-desc which is what we want
+    for photos in all_pages_generator(
+        "photos",
+        "photo",
+        flickr.photos.search,
+        user_id="me",
+        min_upload_date=date_s,
+        extras="date_taken",
+    ):
+        photos_uploaded.extend(photos)
+
+    if len(photos_uploaded) < number:
+        # some photos not uploaded correctly ?
+        print("Some photos were not uploaded correctly")
+        # TODO  what to do in this case ? some were indeed not completed (not a bug):
+        # never actually seen but possible. Deal only with the ones marked complete in
+        # caller? here : deal with just them in caller
+        return None, True
+
+    # take the last <number> posted
+    photos_uploaded = photos_uploaded[:number]
+    # the upload order is the same as date taken
+    sorted_date_posted = sorted(photos_uploaded, key=lambda x: x.datetaken)
+
+    photo_ids_uploaded = [s.id for s in sorted_date_posted]
+    return photo_ids_uploaded, False
 
 
 def _print_album_options(upload_options):
@@ -393,6 +466,46 @@ def _print_album_options(upload_options):
         print(f"Will add to album {upload_options.album_id}")
     else:
         print("Not adding to album")
+
+
+def _set_public(flickr, now_ts, photos_uploaded, parallel):
+    print("Setting photos to public...")
+
+    progress_bar = tqdm(
+        desc="Setting public...", total=len(photos_uploaded), ncols=NCOLS
+    )
+
+    timeout = 5
+
+    def _result_callback(result):
+        progress_bar.update(1)
+
+    def _error_callback(ex):
+        msg = "Error during 'Setting public': " + str(ex.args[0])
+        progress_bar.write(msg)
+
+    with Pool(parallel) as pool:
+        for photo_id in photos_uploaded:
+            pool.apply_async(
+                partial(
+                    retry,
+                    API_RETRIES,
+                    partial(
+                        flickr.photos.setPerms,
+                        photo_id=photo_id,
+                        is_public=1,
+                        is_family=0,
+                        is_friend=0,
+                        timeout=timeout,
+                    ),
+                ),
+                callback=_result_callback,
+                error_callback=_error_callback,
+            )
+        pool.close()
+        pool.join()
+
+    progress_bar.close()
 
 
 def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
@@ -414,7 +527,7 @@ def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
 
     now_ts = generate_timestamps(now_ts, len(photos_uploaded))
     with Pool(parallel) as pool:
-        for photo_id, timestamp in zip(photos_uploaded, now_ts):
+        for photo_id, timestamp in zip(photos_uploaded, now_ts, strict=True):
             pool.apply_async(
                 partial(
                     retry,
@@ -578,7 +691,7 @@ def generate_timestamps(now_ts, num_photos):
     # 6: Invalid Date Taken
     # should be fine if no multiple uploads at the same time
     # photos take > 1 sec (unless parallel very high)
-    now_ts -= 3 * num_photos
+    now_ts -= 2 * num_photos
     timestamps = [now_ts + i for i in range(num_photos)]
     return timestamps
 
@@ -603,7 +716,8 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
             filename=filepath,
             title=title,
             tags=flickr_tags,
-            is_public=int(upload_options.is_public),
+            # if public : set in a later operation
+            is_public=0,
             format="etree",
             timeout=timeout,
             **{"async": 1},
@@ -712,7 +826,11 @@ def add_to_album(flickr, album_id, photo_id):
         def error_callack(ex: Exception):
             # usually means a 500 error was received when adding a photo but the photo
             # was actually successfully added to album
-            if len(ex.args) > 0 and "Error: 3: Photo already in set" in ex.args[0]:
+            if (
+                isinstance(ex.args, Iterable)
+                and len(ex.args) > 0
+                and "Error: 3: Photo already in set" in ex.args[0]
+            ):
                 return True, False
 
             return False, False
