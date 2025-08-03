@@ -19,7 +19,7 @@ import piexif
 from tqdm import tqdm
 
 from api_auth import auth_flickr
-from flickr_utils import all_pages_generator, get_photos
+from flickr_utils import get_photos, get_photostream_photos
 from xmp_utils import (
     NoXMPPacketFound,
     extract_xmp,
@@ -144,6 +144,14 @@ public_option = click.option(
     help="Make photos public",
 )
 
+last_photos_num_option = click.option(
+    "--last",
+    "last_photos_num",
+    type=int,
+    required=True,
+    help="Number of photos to process",
+)
+
 
 yes_option = click.option(
     "--yes",
@@ -248,6 +256,42 @@ def complete(
     )
     if not photo_uploaded_ids:
         raise click.ClickException("No files were succesfully uploaded. Abort!")
+
+    _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
+    if upload_options.is_public:
+        _set_public(flickr, now_ts, photo_uploaded_ids, parallel)
+    _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
+
+    if is_archive:
+        _copy_to_uploaded(folder)
+
+    print("End!")
+
+
+@cli.command("finish_started")
+@folder_option
+@last_photos_num_option
+@public_option
+@album_option
+@create_album_option
+@album_name_option
+@album_description_option
+@parallel_option
+@yes_option
+@archive_option
+def finish_started(folder, last_photos_num, is_yes, parallel, is_archive, **kwargs):
+    flickr = auth_flickr()
+
+    upload_options = UploadOptions(**kwargs)
+
+    if upload_options.is_create_album and not upload_options.album_name:
+        raise ValidationError("Album name is required for creation")
+
+    now_ts = int(datetime.now().timestamp())
+
+    photo_uploaded_ids, _ = _get_uploaded_photos_indirect(flickr, last_photos_num, None)
+
+    print(f"{len(photo_uploaded_ids)} photos will be processed.")
 
     _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
     if upload_options.is_public:
@@ -403,44 +447,51 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
     incomplete_photos = [
         s for s in sorted_statuses if s.status == TicketStatusEnum.INCOMPLETE
     ]
-    force_deal_with_complete = False
+    not_all_photos_uploaded = False
     if incomplete_photos:
+        photo_filenames = [os.path.basename(s.filepath) for s in incomplete_photos]
         print(
             f"{len(incomplete_photos)} files marked as not complete by Flickr but "
-            f"probably uploaded : {','.join(incomplete_photos)}"
+            f"probably uploaded : {','.join(photo_filenames)}"
         )
-        photo_ids_uploaded, force_deal_with_complete = _get_uploaded_photos_indirect(
+        photo_uploaded_ids, not_all_photos_uploaded = _get_uploaded_photos_indirect(
             flickr, len(files_to_upload), now_ts
         )
 
-    if not incomplete_photos or force_deal_with_complete:
-        photo_ids_uploaded = [
+    if not_all_photos_uploaded:
+        # abort in this case (never seen though)
+        msg = "Not all photos uploaded: Repair then use Finish Started. Abort!"
+        raise UploadError(msg)
+
+    if not incomplete_photos:
+        photo_uploaded_ids = [
             s.photo_id for s in sorted_statuses if s.status == TicketStatusEnum.COMPLETE
         ]
 
-    if photo_ids_uploaded:
-        print(f"{len(photo_ids_uploaded)} files uploaded")
+    if photo_uploaded_ids:
+        print(f"{len(photo_uploaded_ids)} files uploaded")
 
-    return photo_ids_uploaded
+    return photo_uploaded_ids
 
 
 def _get_uploaded_photos_indirect(
     flickr, number: int, since_time: datetime, margin_s=10
 ):
     # margin if time in Flick different from local
-    date_s = since_time - margin_s
+    date_s = None
+    if since_time:
+        date_s = since_time - margin_s
 
     photos_uploaded = []
     # sort order default to date-posted-desc which is what we want
-    for photos in all_pages_generator(
-        "photos",
-        "photo",
-        flickr.photos.search,
-        user_id="me",
+    for photos in get_photostream_photos(
+        flickr,
+        limit=number,
         min_upload_date=date_s,
+        sort="date-posted-desc",
         extras="date_taken",
     ):
-        photos_uploaded.extend(photos)
+        photos_uploaded.append(photos)
 
     if len(photos_uploaded) < number:
         # some photos not uploaded correctly ?

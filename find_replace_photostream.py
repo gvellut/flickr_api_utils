@@ -24,7 +24,7 @@ start_id = "54619969949"
 # here the end id is mandatory
 end_id = "54620138645"
 
-images = get_photostream_photos(flickr, start_id, end_id)
+images = get_photostream_photos(flickr, start_id, end_id, sort="date-posted-asc")
 
 for image in images:
     # photos are ordered by date posted ASC
