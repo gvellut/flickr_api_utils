@@ -83,7 +83,10 @@ def get_photostream_photos(
         if not limit:
             raise ValueError("Date of start empty and no limit")
 
-        if "sort" in kwargs and kwargs["stop"] in ("date-posted-asc", "date-taken-asc"):
+        if "sort" in kwargs and kwargs["sort"] in (
+            "date-posted-asc",
+            "date-taken-asc",
+        ):
             raise ValueError(
                 "Date of start empty and sort is from the very start (2005)"
             )
@@ -109,6 +112,7 @@ def get_photostream_photos(
             yield photo
 
             counter += 1
+            # limit is applied in code
             if limit and counter >= limit:
                 logger.info(f"Limit {limit} reached. Stopping")
                 return

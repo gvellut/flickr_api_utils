@@ -43,7 +43,7 @@ UPLOADED_DIR = "____uploaded"
 ZOOM_DIR = "tz95"
 ZOOM_PREFIX = "P"
 
-PRINT_API_ERROR = False
+PRINT_API_ERROR = True
 
 # seconds
 CHECK_TICKETS_SLEEP = 3
@@ -431,42 +431,51 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
     # the rank in the original order
     sorted_statuses = sorted(photo_status.values(), key=attrgetter("order"))
 
+    not_all_photos_uploaded = False
     invalid_photos = [
         os.path.basename(s.filepath)
         for s in sorted_statuses
         if s.status == TicketStatusEnum.INVALID
     ]
     if invalid_photos:
+        not_all_photos_uploaded = True
         print(
             f"{len(invalid_photos)} files not uploaded to Flickr : "
             f"{','.join(invalid_photos)}"
         )
 
-    # check if some are still incomplete. Bug Flickr API similar to the sync upload
-    # issue => incomplete but image still uploaded correctly
-    incomplete_photos = [
-        s for s in sorted_statuses if s.status == TicketStatusEnum.INCOMPLETE
-    ]
-    not_all_photos_uploaded = False
-    if incomplete_photos:
-        photo_filenames = [os.path.basename(s.filepath) for s in incomplete_photos]
-        print(
-            f"{len(incomplete_photos)} files marked as not complete by Flickr but "
-            f"probably uploaded : {','.join(photo_filenames)}"
-        )
-        photo_uploaded_ids, not_all_photos_uploaded = _get_uploaded_photos_indirect(
-            flickr, len(files_to_upload), now_ts
-        )
+    if not not_all_photos_uploaded:
+        # check if some are still incomplete. Bug Flickr API similar to the sync upload
+        # issue => incomplete but image still uploaded correctly
+        incomplete_photos = [
+            s for s in sorted_statuses if s.status == TicketStatusEnum.INCOMPLETE
+        ]
+        if incomplete_photos:
+            photo_filenames = [os.path.basename(s.filepath) for s in incomplete_photos]
+            print(
+                f"{len(incomplete_photos)} files marked as not complete (but not "
+                "invalid) by Flickr but probably uploaded : "
+                f"{','.join(photo_filenames)}"
+            )
+            photo_uploaded_ids, photos_indirect_not_found = (
+                _get_uploaded_photos_indirect(flickr, len(files_to_upload), now_ts)
+            )
+            not_all_photos_uploaded = photos_indirect_not_found
+        else:
+            photo_uploaded_ids = [
+                s.photo_id
+                for s in sorted_statuses
+                if s.status == TicketStatusEnum.COMPLETE
+            ]
+    # else : we will abort anyway
 
     if not_all_photos_uploaded:
-        # abort in this case (never seen though)
-        msg = "Not all photos uploaded: Repair then use Finish Started. Abort!"
+        # abort in this case (never seen though) => photos invalid OR not complete
+        # but cannot find them in indirect
+        msg = (
+            "Not all photos uploaded: Repair or upload then use Finish Started. Abort!"
+        )
         raise UploadError(msg)
-
-    if not incomplete_photos:
-        photo_uploaded_ids = [
-            s.photo_id for s in sorted_statuses if s.status == TicketStatusEnum.COMPLETE
-        ]
 
     if photo_uploaded_ids:
         print(f"{len(photo_uploaded_ids)} files uploaded")
@@ -483,7 +492,6 @@ def _get_uploaded_photos_indirect(
         date_s = since_time - margin_s
 
     photos_uploaded = []
-    # sort order default to date-posted-desc which is what we want
     for photos in get_photostream_photos(
         flickr,
         limit=number,
@@ -503,10 +511,9 @@ def _get_uploaded_photos_indirect(
 
     # take the last <number> posted
     photos_uploaded = photos_uploaded[:number]
-    # the upload order is the same as date taken
-    sorted_date_posted = sorted(photos_uploaded, key=lambda x: x.datetaken)
+    sorted_date_taken = sorted(photos_uploaded, key=lambda x: x.datetaken)
 
-    photo_ids_uploaded = [s.id for s in sorted_date_posted]
+    photo_ids_uploaded = [s.id for s in sorted_date_taken]
     return photo_ids_uploaded, False
 
 
