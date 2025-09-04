@@ -17,12 +17,17 @@ exiftool -lensmake=Meike -lensmodel="Meike 25mm F1.8"  -focallength=25 -lens="25
 
 exiftool -lensmake=Meike -lensmodel="Meike 35mm F1.7"  -focallength=35 -lens="35.0 mm" *  -overwrite_original
 
-exiftool -lensmake=Samyang -lensmodel="Samyang 12mm f/2.0 NCS CS"  -focallength=12 -lens="12.0 mm" *  -overwrite_original 
+exiftool -lensmake=Samyang -lensmodel="Samyang 12mm f/2.0 NCS CS"  -focallength=12 -lens="12.0 mm" -FocalLengthIn35mmFormat="18" *  -overwrite_original 
 
 exiftool -lensmake="TTArtisan" -lensmodel="TTArtisan APS-C 40mm F2.8 MACRO"  -focallength="40" -lens="40.0 mm" *  -overwrite_original
 
 exiftool -lensmake="TTArtisan" -lensmodel="TTArtisan APS-C 23mm F1.4"  -focallength="23" -lens="23 mm" *  -overwrite_original
 ```
+
+
+# Film simulation Fujifilm
+
+exiftool -FilmMode -Saturation ...
 
 # List all tags
 

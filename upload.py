@@ -43,7 +43,7 @@ UPLOADED_DIR = "____uploaded"
 ZOOM_DIR = "tz95"
 ZOOM_PREFIX = "P"
 
-PRINT_API_ERROR = True
+PRINT_API_ERROR = False
 
 # seconds
 CHECK_TICKETS_SLEEP = 3

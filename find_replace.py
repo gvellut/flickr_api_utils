@@ -22,10 +22,10 @@ def parse_album_url(value):
     return None
 
 
-album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720328126103")
+album = parse_album_url("https://www.flickr.com/photos/o_0/albums/72177720328274669")
 images = get_photos(flickr, album.album_id)
 
-start_id = None  # "54591156149"
+start_id = "54710274171"
 end_id = None  # "54567962288"
 
 is_process = False
@@ -38,17 +38,17 @@ for image in images:
 
     print(f"Processing {image.id} [{image.title}] ...")
 
-    # title, n = re.subn(
-    #     r"Le Parc des Jardins de Haute-Savoie - Alpes  ",
-    #     "Parc des Jardins de Haute-Savoie @ ",
-    #     image.title,
-    # )
-    # if n:
-    #     flickr.photos.setMeta(photo_id=image.id, title=title)
+    title, n = re.subn(
+        r"^",
+        "Sentier du Signal @ Mont du Chat @ ",
+        image.title,
+    )
+    if n:
+        flickr.photos.setMeta(photo_id=image.id, title=title)
 
     info = Addict(flickr.photos.getInfo(photo_id=image.id))
     for tag in info.photo.tags.tag:
-        if tag["raw"] == "bauge":
+        if tag["raw"] in ("epine", "montagne de l'epine"):
             tag_id_to_remove = tag.id
             resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
@@ -56,7 +56,7 @@ for image in images:
     #     tag_id_to_remove = tag.id
     #     resp = flickr.photos.removeTag(tag_id=tag_id_to_remove)
 
-    flickr.photos.addTags(photo_id=image.id, tags='"bauges"')
+    # flickr.photos.addTags(photo_id=image.id, tags='"bauges"')
 
     # incluide photo with end_id in processing
     if end_id is not None and image.id == end_id:
