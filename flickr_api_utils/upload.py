@@ -18,9 +18,9 @@ import flickrapi
 import piexif
 from tqdm import tqdm
 
-from api_auth import auth_flickr
-from flickr_utils import get_photos, get_photostream_photos
-from xmp_utils import (
+from .api_auth import auth_flickr
+from .flickr_utils import get_photos, get_photostream_photos
+from .xmp_utils import (
     NoXMPPacketFound,
     extract_xmp,
     get_document_id,

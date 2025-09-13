@@ -1,7 +1,7 @@
 from operator import attrgetter
 
-from api_auth import auth_flickr
-from flickr_utils import get_photos
+from .api_auth import auth_flickr
+from .flickr_utils import get_photos
 
 flickr = auth_flickr()
 

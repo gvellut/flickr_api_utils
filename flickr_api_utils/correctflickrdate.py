@@ -4,8 +4,8 @@ from addict import Dict as Addict
 import dateutil.parser
 from dateutil.relativedelta import relativedelta
 
-from api_auth import auth_flickr
-from flickr_utils import get_photostream_photos
+from .api_auth import auth_flickr
+from .flickr_utils import get_photostream_photos
 
 flickr = auth_flickr()
 

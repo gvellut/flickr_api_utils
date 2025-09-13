@@ -6,8 +6,8 @@ import traceback
 
 import requests
 
-from api_auth import auth_flickr
-from flickr_utils import get_photos
+from .api_auth import auth_flickr
+from .flickr_utils import get_photos
 
 FlickrAlbum = namedtuple("FlickrAlbum", "album_id url")
 

@@ -5,8 +5,8 @@ import os
 from addict import Dict as Addict
 import piexif
 
-from api_auth import auth_flickr
-from flickr_utils import get_photos
+from .api_auth import auth_flickr
+from .flickr_utils import get_photos
 
 
 def make_flickr_photo_url(photo, user_id):

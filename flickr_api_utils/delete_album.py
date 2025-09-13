@@ -1,4 +1,4 @@
-from api_auth import auth_flickr
+from .api_auth import auth_flickr
 
 flickr = auth_flickr()
 

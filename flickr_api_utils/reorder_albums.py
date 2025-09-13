@@ -5,7 +5,7 @@ import os.path
 from addict import Dict as Addict
 import dateutil.parser
 
-from api_auth import auth_flickr
+from .api_auth import auth_flickr
 
 flickr = auth_flickr()
 
