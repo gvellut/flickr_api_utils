@@ -4,8 +4,8 @@ from addict import Dict as Addict
 import attr
 import click
 
-from api_auth import auth_flickr
-
+from ..api_auth import auth_flickr
+from ..flickr_utils import extract_photo_id
 from . import hugo_lib as hug
 
 POSTS_DIR = (
@@ -67,11 +67,7 @@ def extract_photo_ids(urls):
     photo_ids = []
     for url in urls:
         try:
-            photo_id = url.split("/")[5]
-            if not photo_id:
-                print(f"Invalid URL: {url}")
-                continue
-
+            photo_id = extract_photo_id(url)
             photo_ids.append((url, photo_id))
         except Exception:
             print(f"Invalid URL: {url}")
