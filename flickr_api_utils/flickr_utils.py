@@ -39,14 +39,6 @@ def get_photos(flickr, album_id, extras="date_taken,url_o", **kwargs):
     )
 
 
-def extract_photo_id(url):
-    photo_id = url.split("/")[5]
-    if not photo_id:
-        raise Exception(f"Invalid URL: {url}")
-
-    return photo_id
-
-
 def all_pages_generator(page_elem, iter_elem, func, *args, **kwargs):
     page = 1
     while True:

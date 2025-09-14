@@ -305,6 +305,10 @@ def finish_started(folder, last_photos_num, is_yes, parallel, is_archive, **kwar
 
 
 def _copy_to_uploaded(folder):
+    if os.path.basename(folder) == ZOOM_DIR:
+        print(f"Source folder is {ZOOM_DIR}. Nothing to do.")
+        return
+
     to_dir = os.path.join(BASE_PHOTO_DIR, UPLOADED_DIR)
     if not os.path.exists(to_dir) or not os.path.isdir(to_dir):
         print(f"Path {to_dir} doesn't exist or is not a dir. Abort archiving!")
