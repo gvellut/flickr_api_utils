@@ -9,7 +9,6 @@ import traceback
 import attr
 import click
 
-MEDIA = ["LUMIX", "XS10", "RX100M7", "XS20"]
 output_parent_folder = "/Volumes/CrucialX8/photos"
 MEDIA_FOLDER_MAPPING = {
     "LUMIX": "tz95",
@@ -17,6 +16,7 @@ MEDIA_FOLDER_MAPPING = {
     "RX100M7": "rx100",
     "XS20": "xs20",
 }
+MEDIA = list(MEDIA_FOLDER_MAPPING.keys())
 
 DATE_FMT = "%Y%m%d"
 OUTPUT_DATE_FMT = DATE_FMT
@@ -115,9 +115,15 @@ def to_dates(date_s, volume: PhotoVolume):
         if date_s == "last":
             folder_for_sd = MEDIA_FOLDER_MAPPING[volume.name]
             dirs = dirs_with_date(output_parent_folder, subfolder=folder_for_sd)
-            # replace with last folder in order
-            date_s = dirs[0]
-            print(f"last => {date_s}")
+            if dirs:
+                # replace with last folder in order
+                date_s = dirs[0]
+                print(f"last => {date_s}")
+            else:
+                # no folder (new camera maybe?)
+                # dummy date far in the past
+                date_s = "10000101"
+                print("No existing folder: From the beginning")
 
         # only first 8 characters in case title copied
         date_s = date_s[:8]
