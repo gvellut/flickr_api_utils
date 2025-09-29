@@ -20,9 +20,9 @@ def local_tz_fixed():
 flickr = auth_flickr()
 
 
-start_id = "54619969949"
+start_id = "54801998889"
 # here the end id is mandatory
-end_id = "54620138645"
+end_id = "54802009228"
 
 images = get_photostream_photos(flickr, start_id, end_id, sort="date-posted-asc")
 
@@ -33,7 +33,7 @@ for image in images:
 
     print(f"Processing {image.id} [{image.title}] ...")
 
-    title, n = re.subn("Montagne d'Àge", "Montagne d'Âge", image.title)
+    title, n = re.subn("Pac", "Parc", image.title)
     if n:
         print("Replacing...")
         flickr.photos.setMeta(photo_id=image.id, title=title)
