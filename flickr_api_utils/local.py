@@ -1,6 +1,10 @@
 """Local file operations commands."""
 from collections import namedtuple
 from datetime import datetime, timedelta
+import ctypes
+from ctypes.macholib.dyld import dyld_find
+import ctypes.util
+import fnmatch
 import logging
 import os
 import re
@@ -421,3 +425,202 @@ def copy_sd(name, date_spec, is_eject):
     except Exception:
         print(f"Error ejecting {volume[0]}")
         traceback.print_exc()
+
+
+@local.command("copy-all")
+@click.option(
+    "--source",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Source folder path",
+)
+@click.option(
+    "--dest",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Destination folder path",
+)
+@click.option(
+    "--pattern",
+    default="*.JPG",
+    help="File pattern to copy (e.g., '*.JPG', 'DSCF*.jpg')",
+)
+def copy_all(source, dest, pattern):
+    """Copy files matching a pattern from source to destination folder.
+    
+    Useful for copying specific files between folders.
+    """
+    copied = 0
+    for file_name in os.listdir(source):
+        if fnmatch.fnmatch(file_name, pattern):
+            source_path = os.path.join(source, file_name)
+            dest_path = os.path.join(dest, file_name)
+            shutil.copy(source_path, dest_path)
+            copied += 1
+            click.echo(f"Copied: {file_name}")
+    
+    click.echo(f"\nTotal files copied: {copied}")
+
+
+@local.command("list-not-uploaded")
+@click.option(
+    "--folder",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Folder to scan",
+)
+@click.option(
+    "--pattern",
+    default="*_ok",
+    help="Pattern to match (files NOT matching are listed)",
+)
+def list_not_uploaded(folder, pattern):
+    """List files in a folder that do NOT match a pattern.
+    
+    Useful for finding folders that haven't been processed yet.
+    """
+    list_of_files = sorted(os.listdir(folder))
+    unmatched = []
+    for entry in list_of_files:
+        if not fnmatch.fnmatch(entry, pattern):
+            unmatched.append(entry)
+            click.echo(entry)
+    
+    click.echo(f"\nTotal unmatched entries: {len(unmatched)}")
+
+
+# XMP library setup for find-replace-local
+def find_library(name):
+    possible = [
+        "/opt/homebrew/lib/lib%s.dylib" % name,
+        "@executable_path/../lib/lib%s.dylib" % name,
+        "lib%s.dylib" % name,
+        "%s.dylib" % name,
+        "%s.framework/%s" % (name, name),
+    ]
+    for name in possible:
+        try:
+            return dyld_find(name)
+        except ValueError:
+            continue
+    return None
+
+
+ctypes.util.find_library = find_library
+
+
+@local.command("find-replace-local")
+@click.option(
+    "--folder",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help="Folder containing images to process",
+)
+@click.option(
+    "--start-name",
+    help="File name to start processing from (inclusive)",
+)
+@click.option(
+    "--end-name",
+    help="File name to end processing at (inclusive)",
+)
+@click.option(
+    "--find-title",
+    help="Text pattern to find in image titles (regex supported)",
+)
+@click.option(
+    "--replace-title",
+    help="Text to replace in image titles",
+)
+@click.option(
+    "--pattern",
+    default="*.JPG",
+    help="File pattern to match (e.g., '*.JPG', '*.jpg')",
+)
+def find_replace_local(folder, start_name, end_name, find_title, replace_title, pattern):
+    """Find and replace text in local image XMP metadata.
+    
+    Modifies XMP metadata in local image files (requires python-xmp-toolkit).
+    Processes files in the folder sorted by EXIF date taken.
+    """
+    # Import here to make it optional
+    try:
+        from libxmp import consts, XMPFiles, XMPMeta
+    except ImportError:
+        raise click.ClickException(
+            "python-xmp-toolkit is required for this command. "
+            "Install it with: pip install python-xmp-toolkit"
+        )
+    
+    # Validate options
+    if find_title and not replace_title:
+        raise click.ClickException("--replace-title is required when --find-title is specified")
+    if replace_title and not find_title:
+        raise click.ClickException("--find-title is required when --replace-title is specified")
+    if not find_title:
+        raise click.ClickException("At least --find-title/--replace-title must be specified")
+    
+    def date_taken(exif_data):
+        dt_original = exif_data["Exif"][piexif.ExifIFD.DateTimeOriginal]
+        return dt_original.decode("ascii")
+    
+    # Get and sort images by date taken
+    file_paths = os.listdir(folder)
+    images = []
+    for file_path in file_paths:
+        if not fnmatch.fnmatch(file_path, pattern):
+            continue
+        
+        image_path = os.path.join(folder, file_path)
+        if not os.path.isfile(image_path):
+            continue
+            
+        try:
+            exif_data = piexif.load(image_path)
+            dt = date_taken(exif_data)
+            images.append((image_path, dt, file_path))
+        except Exception:
+            click.echo(f"Warning: Could not read EXIF from {file_path}", err=True)
+            continue
+    
+    ordered_images = sorted(images, key=lambda x: x[1])
+    
+    is_process = False
+    processed = 0
+    
+    for image_path, _, file_name in ordered_images:
+        if start_name is None or file_name == start_name:
+            is_process = True
+        
+        if not is_process:
+            continue
+        
+        click.echo(f"Processing: {file_name}")
+        
+        to_save = False
+        
+        try:
+            xmpfile = XMPFiles(file_path=image_path, open_forupdate=True)
+            xmp = xmpfile.get_xmp()
+            ns = "http://purl.org/dc/elements/1.1/"
+            title = xmp.get_property(ns, "dc:title[1]")
+            
+            if find_title and replace_title and title:
+                new_title, n = re.subn(find_title, replace_title, title)
+                if n:
+                    to_save = True
+                    xmp.set_array_item(ns, "dc:title", 1, new_title)
+                    click.echo(f"  Updated title: {new_title}")
+            
+            if to_save:
+                xmpfile.put_xmp(xmp)
+                xmpfile.close_file(consts.XMP_CLOSE_SAFEUPDATE)
+                processed += 1
+        except Exception as e:
+            click.echo(f"  Error processing: {e}", err=True)
+        
+        # Include file with end_name in processing
+        if end_name is not None and file_name == end_name:
+            break
+    
+    click.echo(f"\nTotal files processed: {processed}")

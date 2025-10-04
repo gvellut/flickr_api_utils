@@ -205,8 +205,7 @@ def list_by_date(date, limit):
 @photo.command("find-replace")
 @click.option(
     "--album",
-    required=True,
-    help="Album ID or URL to process",
+    help="Album ID or URL to process (if not provided, uses photostream)",
 )
 @click.option(
     "--start-id",
@@ -217,89 +216,124 @@ def list_by_date(date, limit):
     help="Photo ID or URL to end processing at (inclusive)",
 )
 @click.option(
-    "--find",
-    required=True,
-    help="Text pattern to find (regex supported)",
+    "--find-title",
+    help="Text pattern to find in photo titles (regex supported)",
 )
 @click.option(
-    "--replace-with",
-    required=True,
-    help="Text to replace with",
+    "--replace-title",
+    help="Text to replace in photo titles",
 )
-def find_replace_cmd(album, start_id, end_id, find, replace_with):
-    """Find and replace text in photo titles within an album."""
+@click.option(
+    "--remove-tag",
+    help="Tag to remove from photos",
+)
+@click.option(
+    "--add-tags",
+    help="Comma-separated tags to add to photos (e.g., 'tag1,tag2')",
+)
+@click.option(
+    "--sort",
+    default="date-posted-asc",
+    help="Sort order for photostream (e.g., date-posted-asc, date-posted-desc, date-taken-asc, date-taken-desc). Ignored for albums.",
+)
+def find_replace_cmd(album, start_id, end_id, find_title, replace_title, remove_tag, add_tags, sort):
+    """Find and replace text in photo titles and/or modify tags.
+    
+    Works on either an album (if --album provided) or photostream (if --album not provided).
+    Can perform title replacements (--find-title and --replace-title) and/or
+    tag operations (--remove-tag and/or --add-tags).
+    
+    At least one operation (title replacement or tag modification) must be specified.
+    
+    For photostream, photos are processed in the order specified by --sort.
+    For albums, photos are processed in their album order (as they appear on Flickr).
+    """
     flickr = auth_flickr()
     
-    album_id = extract_album_id(album)
+    # Validate that at least one operation is specified
+    if not find_title and not remove_tag and not add_tags:
+        raise click.ClickException(
+            "At least one operation must be specified: "
+            "--find-title/--replace-title, --remove-tag, or --add-tags"
+        )
+    
+    # Validate title replacement options
+    if find_title and not replace_title:
+        raise click.ClickException("--replace-title is required when --find-title is specified")
+    if replace_title and not find_title:
+        raise click.ClickException("--find-title is required when --replace-title is specified")
+    
+    # Extract IDs from URLs if needed
     if start_id:
         start_id = extract_photo_id(start_id)
     if end_id:
         end_id = extract_photo_id(end_id)
     
-    images = get_photos(flickr, album_id)
+    # Get photos from album or photostream
+    if album:
+        # Album mode - use album order
+        album_id = extract_album_id(album)
+        images = get_photos(flickr, album_id)
+        click.echo(f"Processing photos in album {album_id}...")
+        
+        is_process = False
+        for image in images:
+            if start_id is None or image.id == start_id:
+                is_process = True
+            
+            if not is_process:
+                continue
+            
+            _process_photo(flickr, image, find_title, replace_title, remove_tag, add_tags)
+            
+            # Include photo with end_id in processing
+            if end_id is not None and image.id == end_id:
+                break
+    else:
+        # Photostream mode - require start and end IDs
+        if not start_id or not end_id:
+            raise click.ClickException(
+                "For photostream mode, both --start-id and --end-id are required"
+            )
+        
+        click.echo(f"Processing photos in photostream (sort: {sort})...")
+        images = get_photostream_photos(flickr, start_id, end_id, sort=sort)
+        
+        for image in images:
+            _process_photo(flickr, image, find_title, replace_title, remove_tag, add_tags)
+
+
+def _process_photo(flickr, image, find_title, replace_title, remove_tag, add_tags):
+    """Process a single photo with title replacement and/or tag operations."""
+    click.echo(f"Processing {image.id} [{image.title}] ...")
     
-    is_process = False
-    for image in images:
-        if start_id is None or image.id == start_id:
-            is_process = True
-        
-        if not is_process:
-            continue
-        
-        click.echo(f"Processing {image.id} [{image.title}] ...")
-        
-        title, n = re.subn(find, replace_with, image.title)
+    # Title replacement
+    if find_title and replace_title:
+        title, n = re.subn(find_title, replace_title, image.title)
         if n:
             flickr.photos.setMeta(photo_id=image.id, title=title)
             click.echo(f"  Updated title: {title}")
+    
+    # Tag operations (need to get full photo info for tags)
+    if remove_tag or add_tags:
+        info = Addict(flickr.photos.getInfo(photo_id=image.id))
         
-        # Include photo with end_id in processing
-        if end_id is not None and image.id == end_id:
-            break
-
-
-@photo.command("find-replace-photostream")
-@click.option(
-    "--start-id",
-    required=True,
-    help="Photo ID or URL to start from (inclusive)",
-)
-@click.option(
-    "--end-id",
-    required=True,
-    help="Photo ID or URL to end at (inclusive)",
-)
-@click.option(
-    "--find",
-    required=True,
-    help="Text pattern to find (regex supported)",
-)
-@click.option(
-    "--replace-with",
-    required=True,
-    help="Text to replace with",
-)
-def find_replace_photostream(start_id, end_id, find, replace_with):
-    """Find and replace text in photo titles in your photostream.
-    
-    Processes photos between start_id and end_id (inclusive) ordered by date posted.
-    """
-    flickr = auth_flickr()
-    
-    start_photo_id = extract_photo_id(start_id)
-    end_photo_id = extract_photo_id(end_id)
-    
-    images = get_photostream_photos(
-        flickr, start_photo_id, end_photo_id, sort="date-posted-asc"
-    )
-    
-    for image in images:
-        click.echo(f"Processing {image.id} [{image.title}] ...")
+        # Remove tag
+        if remove_tag:
+            for tag in info.photo.tags.tag:
+                if tag["raw"] == remove_tag:
+                    tag_id_to_remove = tag.id
+                    flickr.photos.removeTag(tag_id=tag_id_to_remove)
+                    click.echo(f"  Removed tag: {remove_tag}")
+                    break
         
-        title, n = re.subn(find, replace_with, image.title)
-        if n:
-            flickr.photos.setMeta(photo_id=image.id, title=title)
-            click.echo(f"  Updated title: {title}")
+        # Add tags
+        if add_tags:
+            # Format tags with quotes for multi-word tags
+            tag_list = [f'"{tag.strip()}"' for tag in add_tags.split(',')]
+            tags_str = ' '.join(tag_list)
+            flickr.photos.addTags(photo_id=image.id, tags=tags_str)
+            click.echo(f"  Added tags: {add_tags}")
 
 
 @photo.command("correct-date")
