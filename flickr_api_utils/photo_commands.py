@@ -258,6 +258,50 @@ def find_replace_cmd(album, start_id, end_id, find, replace_with):
             break
 
 
+@photo.command("find-replace-photostream")
+@click.option(
+    "--start-id",
+    required=True,
+    help="Photo ID or URL to start from (inclusive)",
+)
+@click.option(
+    "--end-id",
+    required=True,
+    help="Photo ID or URL to end at (inclusive)",
+)
+@click.option(
+    "--find",
+    required=True,
+    help="Text pattern to find (regex supported)",
+)
+@click.option(
+    "--replace-with",
+    required=True,
+    help="Text to replace with",
+)
+def find_replace_photostream(start_id, end_id, find, replace_with):
+    """Find and replace text in photo titles in your photostream.
+    
+    Processes photos between start_id and end_id (inclusive) ordered by date posted.
+    """
+    flickr = auth_flickr()
+    
+    start_photo_id = extract_photo_id(start_id)
+    end_photo_id = extract_photo_id(end_id)
+    
+    images = get_photostream_photos(
+        flickr, start_photo_id, end_photo_id, sort="date-posted-asc"
+    )
+    
+    for image in images:
+        click.echo(f"Processing {image.id} [{image.title}] ...")
+        
+        title, n = re.subn(find, replace_with, image.title)
+        if n:
+            flickr.photos.setMeta(photo_id=image.id, title=title)
+            click.echo(f"  Updated title: {title}")
+
+
 @photo.command("correct-date")
 @click.option(
     "--start-id",

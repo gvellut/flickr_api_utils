@@ -9,3 +9,6 @@ albums.json
 *.xml
 .DS_Store
 prompts
+*.egg-info
+dist/
+build/

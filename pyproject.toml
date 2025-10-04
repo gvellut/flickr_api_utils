@@ -3,7 +3,7 @@ name = "flickr-api-utils"
 version = "0.1.0"
 description = "Flickr API utils"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "addict~=2.4.0",
     "attrs~=25.3.0",
