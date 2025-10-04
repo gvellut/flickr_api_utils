@@ -236,7 +236,7 @@ def complete(
         if is_abort_no_metadata:
             raise click.ClickException("Some files have no metadata. Abort!")
 
-    _print_album_options(upload_options)
+    _print_album_options(flickr, upload_options)
     if upload_options.is_public:
         print("Will make photos public")
     else:
@@ -530,11 +530,16 @@ def _get_uploaded_photos_indirect(
     return photo_ids_uploaded, False
 
 
-def _print_album_options(upload_options):
+def _print_album_options(flickr, upload_options):
     if upload_options.is_create_album:
         print(f"Will create album {upload_options.album_name}")
     elif upload_options.album_id:
-        print(f"Will add to album {upload_options.album_id}")
+        try:
+            resp = flickr.photosets.getInfo(photoset_id=upload_options.album_id)
+            album_name = Addict(resp).photoset.title._content
+            print(f"Will add to album {upload_options.album_id} ('{album_name}')")
+        except Exception:
+            print(f"Will add to album {upload_options.album_id} (name not found)")
     else:
         print("Not adding to album")
 
