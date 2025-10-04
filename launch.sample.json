@@ -244,6 +244,53 @@
       "console": "integratedTerminal"
     },
     {
+      "name": "Local: Copy SD",
+      "type": "python",
+      "request": "launch",
+      "module": "flickr_api_utils",
+      "args": [
+        "local",
+        "copy-sd",
+        "--name",
+        "my_photos",
+        "--date",
+        "TD",
+        "--no-eject"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Local: Copy Zoom to Std",
+      "type": "python",
+      "request": "launch",
+      "module": "flickr_api_utils",
+      "args": [
+        "local",
+        "copy-zoom-to-std",
+        "20240425_feracheval"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Photo: Find Replace Photostream",
+      "type": "python",
+      "request": "launch",
+      "module": "flickr_api_utils",
+      "args": [
+        "photo",
+        "find-replace-photostream",
+        "--start-id",
+        "54801998889",
+        "--end-id",
+        "54802009228",
+        "--find",
+        "Pac",
+        "--replace-with",
+        "Parc"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
       "name": "Blog: To Markdown",
       "type": "python",
       "request": "launch",

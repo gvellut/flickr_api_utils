@@ -102,6 +102,17 @@ uv run ruff check flickr_api_utils/
 uv run ruff format flickr_api_utils/
 ```
 
+## Utility Scripts
+
+The following scripts in `flickr_api_utils/` are one-off utilities with hardcoded paths for specific use cases:
+
+- `copy_all.py` - Copy files between folders
+- `find_replace_local.py` - Find/replace in local file XMP metadata
+- `list_not_uploaded.py` - List folders not matching a pattern
+- `upload_async_test.py` - Test script for async uploads
+
+These are not part of the main CLI and should be edited directly for your specific use case.
+
 ## Other Resources
 
 Find NSID by URL: https://www.flickr.com/services/api/flickr.urls.lookupUser.html
