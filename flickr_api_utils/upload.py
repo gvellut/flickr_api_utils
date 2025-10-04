@@ -1,6 +1,6 @@
 from collections import namedtuple
 from collections.abc import Iterable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from enum import Enum, auto
 from functools import partial
 import logging
@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 from .api_auth import auth_flickr
 from .flickr_utils import get_photos, get_photostream_photos
+from .url_utils import extract_album_id
 from .xmp_utils import (
     NoXMPPacketFound,
     extract_xmp,
@@ -115,7 +116,7 @@ folder_option = click.option(
 album_option = click.option(
     "--album",
     "album_id",
-    help="Album ID to upload to",
+    help="Album ID or URL to upload to",
 )
 
 create_album_option = click.option(
@@ -185,11 +186,11 @@ parallel_option = click.option(
 
 
 @click.group()
-def cli():
+def upload():
     pass
 
 
-@cli.command("complete")
+@upload.command("standard")
 @folder_option
 @click.option("--label", "filter_label", default="Accepted", help="Label to filter on")
 @public_option
@@ -207,6 +208,10 @@ def complete(
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+
+    # Extract album ID from URL if needed
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
 
     if upload_options.is_create_album and not upload_options.album_name:
         raise ValidationError("Album name is required for creation")
@@ -268,7 +273,7 @@ def complete(
     print("End!")
 
 
-@cli.command("finish_started")
+@upload.command("finish")
 @folder_option
 @last_photos_num_option
 @public_option
@@ -283,6 +288,10 @@ def finish_started(folder, last_photos_num, is_yes, parallel, is_archive, **kwar
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+
+    # Extract album ID from URL if needed
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
 
     if upload_options.is_create_album and not upload_options.album_name:
         raise ValidationError("Album name is required for creation")
@@ -514,6 +523,7 @@ def _get_uploaded_photos_indirect(
         return None, True
 
     # take the last <number> posted
+    # TODO necesasary ? limit is used in get_photostream_photos
     photos_uploaded = photos_uploaded[:number]
     sorted_date_taken = sorted(photos_uploaded, key=lambda x: x.datetaken)
 
@@ -663,14 +673,14 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
 
 # to upload photos that are missing
 # for now : only album
-@cli.command("diff")
+@upload.command("diff")
 @folder_option
 @click.option("--label", "filter_label", default="Uploaded", help="Label to filter on")
 @click.option(
     "--album",
     "album_id",
     required=True,
-    help="Album ID to upload to",
+    help="Album ID or URL to upload to",
 )
 @public_option
 @yes_option
@@ -678,6 +688,10 @@ def diff(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+
+    # Extract album ID from URL if needed
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
 
     print("Getting local set of photos ...")
     files_set = filtered(folder, filter_label)
@@ -902,12 +916,3 @@ def add_to_album(flickr, album_id, photo_id):
     except Exception as e:
         msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
         raise AddToAlbumError(msg) from e
-
-
-if __name__ == "__main__":
-    try:
-        cli()
-    except click.exceptions.Abort:
-        # Click raises this on Ctrl+C, and it prints "Aborted!".
-        # We can pass to let the script exit cleanly.
-        pass

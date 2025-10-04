@@ -15,9 +15,10 @@ select = [
     #"SIM",
     # isort
     # "I",
+    "ISC",
 ]
 # do not auto del the unused imports
-unfixable = ["F401"]
+unfixable = ["F401", "ISC001"]
 
 [lint.isort]
 combine-as-imports = true

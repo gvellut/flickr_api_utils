@@ -14,14 +14,13 @@ def generate_random_string(length):
     return result_str
 
 
-with open("api_key.json") as f:
-    flickr_key = Addict(json.load(f))
-
-api_key = flickr_key.key
-api_secret = flickr_key.secret
-
-
 def auth_flickr():
+    with open("api_key.json") as f:
+        flickr_key = Addict(json.load(f))
+
+    api_key = flickr_key.key
+    api_secret = flickr_key.secret
+
     flickr = flickrapi.FlickrAPI(
         api_key,
         api_secret,
@@ -33,7 +32,7 @@ def auth_flickr():
     flickr.flickr_oauth.session.headers.update(
         {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit"
-            + f"/537.36 (KHTML, like Gecko) Chrome/120.0.0.0v{v} Safari/537.3"
+            f"/537.36 (KHTML, like Gecko) Chrome/120.0.0.0v{v} Safari/537.3"
         }
     )
 
