@@ -48,6 +48,34 @@ flickr-api-utils --help
 - **local**: Local file operations (crop images, copy from SD card)
 - **blog**: Blog utilities (generate markdown from Flickr photos)
 
+### Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `photo download` | Download photos from an album |
+| `photo replace` | Replace photos by matching EXIF dates |
+| `photo list-by-date` | List photos taken on a specific date |
+| `photo find-replace` | Find/replace text in photo titles in album |
+| `photo find-replace-photostream` | Find/replace text in photostream |
+| `photo correct-date` | Fix bad date taken for photos |
+| `album list` | List all your albums |
+| `album delete` | Delete an album |
+| `album move-to-top` | Move album to top of list |
+| `album reorder` | Reorder albums by photo dates |
+| `album reorder-photos` | Sort photos in album by date |
+| `album remove-photos` | Remove photos from album |
+| `album info` | Display album statistics |
+| `tag remove` | Remove tags from photos |
+| `upload complete` | Upload photos with full workflow |
+| `upload finish_started` | Process recently uploaded photos |
+| `upload diff` | Upload missing photos |
+| `local crop43` | Crop images to 4:3 ratio |
+| `local copy-sd` | Copy photos from SD card |
+| `local copy-zoom-to-std` | Copy zoom camera photos |
+| `blog to-markdown` | Generate Hugo markdown |
+
+See [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) for detailed usage examples.
+
 ### Examples
 
 ```bash
