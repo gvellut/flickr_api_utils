@@ -19,4 +19,4 @@ dependencies = [
 ]
 
 [project.scripts]
-flickr-api-utils = "flickr_api_utils.cli:cli"
+flickr-api-utils = "flickr_api_utils.__main__:cli"
