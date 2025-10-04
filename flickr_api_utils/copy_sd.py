@@ -232,40 +232,19 @@ def copy_to_folder(volume: PhotoVolume, folder_base, f_date):
                 shutil.copy2(file_path, output_folder)
 
 
-@click.command()
-@click.option(
-    "--name",
-    "name",
-    required=True,
-    help="Folder name",
-)
-@click.option(
-    "--date",
-    "date_spec",
-    default="TD",
-    help="Date spec",
-    show_default=True,
-)
-@click.option(
-    "--no-eject",
-    "is_eject",
-    default=True,
-    help="Eject SD",
-    is_flag=True,
-)
-def main(name, date_spec, is_eject):
+def copy_sd_main(name, date_spec, is_eject):
     volume = get_volume(MEDIA)
 
     if not volume:
-        print("No relevant SD card. Volume not renamed?")
-        exit(1)
+        click.echo("No relevant SD card. Volume not renamed?")
+        return
 
     dates = to_dates(date_spec, volume)
     if not isinstance(dates, list):
         dates = [dates]
     if not dates:
-        print("No image found: Is the SD card inserted and mounted?")
-        exit(1)
+        click.echo("No image found: Is the SD card inserted and mounted?")
+        return
 
     dates = sorted(dates)
     output_folder_base = [
@@ -280,8 +259,8 @@ def main(name, date_spec, is_eject):
         f"The images will be copied from : {volume_mapping} to {text_folder} "
         f"(dates: {text_date})\nConfirm?"
     ):
-        print("Aborted by user")
-        exit(1)
+        click.echo("Aborted by user")
+        return
 
     for i, f_date in enumerate(dates):
         folder_base = output_folder_base[i]

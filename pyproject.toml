@@ -7,12 +7,16 @@ requires-python = ">=3.13"
 dependencies = [
     "addict~=2.4.0",
     "attrs~=25.3.0",
-    "click~=8.2.0",
+    "click~=8.3.0",
     "flickrapi~=2.4.0",
     "piexif~=1.1.0",
     "pillow~=11.3.0",
     "python-dateutil~=2.8.0",
     "python-xmp-toolkit~=2.0.0",
+    "requests~=2.32.0",
     "toml~=0.10.0",
     "tqdm~=4.65.0",
 ]
+
+[project.scripts]
+flickr-api-utils = "flickr_api_utils.cli:cli"

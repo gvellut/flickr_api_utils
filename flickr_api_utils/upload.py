@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 from .api_auth import auth_flickr
 from .flickr_utils import get_photos, get_photostream_photos
+from .url_utils import extract_album_id
 from .xmp_utils import (
     NoXMPPacketFound,
     extract_xmp,
@@ -115,7 +116,7 @@ folder_option = click.option(
 album_option = click.option(
     "--album",
     "album_id",
-    help="Album ID to upload to",
+    help="Album ID or URL to upload to",
 )
 
 create_album_option = click.option(
@@ -207,6 +208,10 @@ def complete(
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+    
+    # Extract album ID from URL if needed
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
 
     if upload_options.is_create_album and not upload_options.album_name:
         raise ValidationError("Album name is required for creation")
@@ -283,6 +288,10 @@ def finish_started(folder, last_photos_num, is_yes, parallel, is_archive, **kwar
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+    
+    # Extract album ID from URL if needed
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
 
     if upload_options.is_create_album and not upload_options.album_name:
         raise ValidationError("Album name is required for creation")
@@ -670,7 +679,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
     "--album",
     "album_id",
     required=True,
-    help="Album ID to upload to",
+    help="Album ID or URL to upload to",
 )
 @public_option
 @yes_option
@@ -678,6 +687,10 @@ def diff(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
     upload_options = UploadOptions(**kwargs)
+    
+    # Extract album ID from URL if needed
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
 
     print("Getting local set of photos ...")
     files_set = filtered(folder, filter_label)
