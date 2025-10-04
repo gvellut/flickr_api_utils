@@ -1,9 +1,8 @@
-"""Local file operations commands."""
 from collections import namedtuple
-from datetime import datetime, timedelta
 import ctypes
 from ctypes.macholib.dyld import dyld_find
 import ctypes.util
+from datetime import datetime, timedelta
 import fnmatch
 import logging
 import os
@@ -25,24 +24,27 @@ def local():
 
 
 @local.command("crop43")
-@click.argument("input_folder", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.argument(
+    "input_folder", type=click.Path(exists=True, file_okay=False, dir_okay=True)
+)
 @click.argument("output_folder", type=click.Path())
 def crop43(input_folder, output_folder):
     """Crop vertical JPEG images to 4:3 aspect ratio.
-    
-    Processes all JPEG files in INPUT_FOLDER and saves cropped versions to OUTPUT_FOLDER.
+
+    Processes all JPEG files in INPUT_FOLDER and saves cropped versions to
+    OUTPUT_FOLDER.
     Preserves EXIF data.
     """
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-    
+
     os.makedirs(output_folder, exist_ok=True)
     count = 0
-    
+
     if not click.confirm(f"Crop to {output_folder}. Confirm?"):
         click.echo("Aborted by user")
         return
-    
+
     for filename in sorted(list(os.listdir(input_folder))):
         if filename.lower().endswith(".jpg") or filename.lower().endswith(".jpeg"):
             logger.info(f"Processing file: {filename}")
@@ -60,18 +62,18 @@ def crop_image(img_path, output_path):
             for k, v in img.getexif().items()
             if k in ExifTags.TAGS and isinstance(v, (int, bytes))
         }
-        
+
         orientation = exif.get("Orientation", 1)
-        
+
         if orientation in [6, 8]:  # Vertical image
             if orientation == 6:  # Rotate 90 degrees to the right
                 img_rot = img.rotate(-90, expand=True)
             elif orientation == 8:  # Rotate 90 degrees to the left
                 img_rot = img.rotate(90, expand=True)
-            
+
             new_height = int(img_rot.width * 4 / 3)
             img_cropped = img_rot.crop((0, 0, img_rot.width, new_height))
-            
+
             # Reset orientation
             try:
                 exif_bytes = piexif.dump({"0th": {piexif.ImageIFD.Orientation: 1}})
@@ -87,40 +89,40 @@ def crop_image(img_path, output_path):
 @click.argument("folder_path")
 def copy_zoom_to_std(folder_path):
     """Copy photos from zoom camera folder to standard camera folder.
-    
+
     Copies files from {folder}/tz95 to {folder}/xs20.
     """
     BASE_DIR = "/Volumes/CrucialX8/photos"
     folder_std = "xs20"
     folder_zoom = "tz95"
-    
+
     if not os.path.isabs(folder_path):
         # make abs
         folder_path = os.path.join(BASE_DIR, folder_path)
-    
+
     source_dir_path = os.path.join(folder_path, folder_zoom)
     dest_dir_path = os.path.join(folder_path, folder_std)
-    
+
     click.echo(f"Source directory: {source_dir_path}")
     click.echo(f"Destination directory: {dest_dir_path}")
-    
+
     if not os.path.isdir(source_dir_path):
         click.echo(f"Error: Source directory '{folder_zoom}' not found.")
         return
     if not os.path.isdir(dest_dir_path):
         click.echo(f"Error: Destination directory '{folder_std}' not found.")
         return
-    
+
     if not click.confirm("Proceed with copying files?"):
         click.echo("Operation cancelled by user.")
         return
-    
+
     copied_count = 0
-    
+
     for item_name in os.listdir(source_dir_path):
         source_item_path = os.path.join(source_dir_path, item_name)
         dest_item_path = os.path.join(dest_dir_path, item_name)
-        
+
         if os.path.isfile(source_item_path):
             try:
                 shutil.copy2(source_item_path, dest_item_path)
@@ -130,7 +132,7 @@ def copy_zoom_to_std(folder_path):
                 click.echo(f"Error copying '{item_name}': {e}")
         else:
             click.echo(f"Skipping '{item_name}', not a file.")
-    
+
     click.echo(f"\nCopy complete. {copied_count} file(s) copied.")
 
 
@@ -368,7 +370,6 @@ def copy_to_folder(volume: PhotoVolume, folder_base, f_date):
     "--date",
     "date_spec",
     default="TD",
-    show_default=True,
     help="Date spec (TD=today, YD=yesterday, YYYYMMDD, or YYYYMMDD-YYYYMMDD for range)",
 )
 @click.option(
@@ -380,7 +381,7 @@ def copy_to_folder(volume: PhotoVolume, folder_base, f_date):
 )
 def copy_sd(name, date_spec, is_eject):
     """Copy photos from SD card to local folder.
-    
+
     Automatically detects SD card (LUMIX, XS10, RX100M7, XS20) and copies
     photos based on date specification.
     """
@@ -447,7 +448,7 @@ def copy_sd(name, date_spec, is_eject):
 )
 def copy_all(source, dest, pattern):
     """Copy files matching a pattern from source to destination folder.
-    
+
     Useful for copying specific files between folders.
     """
     copied = 0
@@ -458,7 +459,7 @@ def copy_all(source, dest, pattern):
             shutil.copy(source_path, dest_path)
             copied += 1
             click.echo(f"Copied: {file_name}")
-    
+
     click.echo(f"\nTotal files copied: {copied}")
 
 
@@ -476,7 +477,7 @@ def copy_all(source, dest, pattern):
 )
 def list_not_uploaded(folder, pattern):
     """List files in a folder that do NOT match a pattern.
-    
+
     Useful for finding folders that haven't been processed yet.
     """
     list_of_files = sorted(os.listdir(folder))
@@ -485,18 +486,18 @@ def list_not_uploaded(folder, pattern):
         if not fnmatch.fnmatch(entry, pattern):
             unmatched.append(entry)
             click.echo(entry)
-    
+
     click.echo(f"\nTotal unmatched entries: {len(unmatched)}")
 
 
 # XMP library setup for find-replace-local
 def find_library(name):
     possible = [
-        "/opt/homebrew/lib/lib%s.dylib" % name,
-        "@executable_path/../lib/lib%s.dylib" % name,
-        "lib%s.dylib" % name,
-        "%s.dylib" % name,
-        "%s.framework/%s" % (name, name),
+        f"/opt/homebrew/lib/lib{name}.dylib",
+        f"@executable_path/../lib/lib{name}.dylib",
+        f"lib{name}.dylib",
+        f"{name}.dylib",
+        f"{name}.framework/{name}",
     ]
     for name in possible:
         try:
@@ -537,44 +538,52 @@ ctypes.util.find_library = find_library
     default="*.JPG",
     help="File pattern to match (e.g., '*.JPG', '*.jpg')",
 )
-def find_replace_local(folder, start_name, end_name, find_title, replace_title, pattern):
+def find_replace_local(
+    folder, start_name, end_name, find_title, replace_title, pattern
+):
     """Find and replace text in local image XMP metadata.
-    
+
     Modifies XMP metadata in local image files (requires python-xmp-toolkit).
     Processes files in the folder sorted by EXIF date taken.
     """
     # Import here to make it optional
     try:
-        from libxmp import consts, XMPFiles, XMPMeta
-    except ImportError:
+        from libxmp import XMPFiles, consts
+    except ImportError as ex:
         raise click.ClickException(
             "python-xmp-toolkit is required for this command. "
             "Install it with: pip install python-xmp-toolkit"
-        )
-    
+        ) from ex
+
     # Validate options
     if find_title and not replace_title:
-        raise click.ClickException("--replace-title is required when --find-title is specified")
+        raise click.ClickException(
+            "--replace-title is required when --find-title is specified"
+        )
     if replace_title and not find_title:
-        raise click.ClickException("--find-title is required when --replace-title is specified")
+        raise click.ClickException(
+            "--find-title is required when --replace-title is specified"
+        )
     if not find_title:
-        raise click.ClickException("At least --find-title/--replace-title must be specified")
-    
+        raise click.ClickException(
+            "At least --find-title/--replace-title must be specified"
+        )
+
     def date_taken(exif_data):
         dt_original = exif_data["Exif"][piexif.ExifIFD.DateTimeOriginal]
         return dt_original.decode("ascii")
-    
+
     # Get and sort images by date taken
     file_paths = os.listdir(folder)
     images = []
     for file_path in file_paths:
         if not fnmatch.fnmatch(file_path, pattern):
             continue
-        
+
         image_path = os.path.join(folder, file_path)
         if not os.path.isfile(image_path):
             continue
-            
+
         try:
             exif_data = piexif.load(image_path)
             dt = date_taken(exif_data)
@@ -582,45 +591,45 @@ def find_replace_local(folder, start_name, end_name, find_title, replace_title, 
         except Exception:
             click.echo(f"Warning: Could not read EXIF from {file_path}", err=True)
             continue
-    
+
     ordered_images = sorted(images, key=lambda x: x[1])
-    
+
     is_process = False
     processed = 0
-    
+
     for image_path, _, file_name in ordered_images:
         if start_name is None or file_name == start_name:
             is_process = True
-        
+
         if not is_process:
             continue
-        
+
         click.echo(f"Processing: {file_name}")
-        
+
         to_save = False
-        
+
         try:
             xmpfile = XMPFiles(file_path=image_path, open_forupdate=True)
             xmp = xmpfile.get_xmp()
             ns = "http://purl.org/dc/elements/1.1/"
             title = xmp.get_property(ns, "dc:title[1]")
-            
+
             if find_title and replace_title and title:
                 new_title, n = re.subn(find_title, replace_title, title)
                 if n:
                     to_save = True
                     xmp.set_array_item(ns, "dc:title", 1, new_title)
                     click.echo(f"  Updated title: {new_title}")
-            
+
             if to_save:
                 xmpfile.put_xmp(xmp)
                 xmpfile.close_file(consts.XMP_CLOSE_SAFEUPDATE)
                 processed += 1
         except Exception as e:
             click.echo(f"  Error processing: {e}", err=True)
-        
+
         # Include file with end_name in processing
         if end_name is not None and file_name == end_name:
             break
-    
+
     click.echo(f"\nTotal files processed: {processed}")

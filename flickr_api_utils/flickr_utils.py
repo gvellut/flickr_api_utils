@@ -4,7 +4,7 @@ from time import sleep
 
 from addict import Dict as Addict
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def all_pages(page_elem, iter_elem, func, *args, **kwargs):
@@ -51,7 +51,8 @@ def all_pages_generator(page_elem, iter_elem, func, *args, **kwargs):
         page += 1
 
 
-# TODO more options for stream
+# start, end : depend on sort order which is later : desc : e < s; asc: s < e
+# in argument
 def get_photostream_photos(
     flickr, start_photo_id=None, end_photo_id=None, limit=1000, **kwargs
 ):
@@ -72,32 +73,27 @@ def get_photostream_photos(
         dt_e = datetime.fromtimestamp(date_e)
         logger.info(f"End: {dt_e} ")
 
-    if date_e and date_s:
-        if date_e < date_s:
-            raise ValueError(
-                f"Date of start {start_photo_id} is after date of end {end_photo_id}"
-            )
+    if not date_e and not date_s and not limit:
+        raise ValueError("No dates and no limit: All photos would be returned.")
 
-    if not date_s:
-        # most likely a mistake : too many photos from the beginning
-        if not limit:
-            raise ValueError("Date of start empty and no limit")
-
-        if "sort" in kwargs and kwargs["sort"] in (
-            "date-posted-asc",
-            "date-taken-asc",
-        ):
-            raise ValueError(
-                "Date of start empty and sort is from the very start (2005)"
-            )
+    # avoid going to 2005 in both sort order (most likely a mistake)
+    if "sort" in kwargs and kwargs["sort"].endswith("-asc"):
+        if not date_s:
+            # in this case, you should input the first photo
+            raise ValueError("Start date empty: would start from 2005 (sort=asc)")
     else:
+        # desc
+        if not date_e and not limit:
+            raise ValueError(
+                "End date empty and would go to 2005. Probably a mistake (sort=desc)"
+            )
+        # for flickr API parameters : it should be ordered
+        date_e, date_s = date_s, date_e
+
+    if date_s:
         kwargs.update(min_upload_date=date_s)
 
-    if not date_e:
-        # could be a problem depending on the start date
-        logger.warning("No end date! Wait 2s. Abort if error.")
-        sleep(2)
-    else:
+    if date_e:
         kwargs.update(max_upload_date=date_e)
 
     counter = 0

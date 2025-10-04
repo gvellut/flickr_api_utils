@@ -1,9 +1,8 @@
-"""Blog utility commands."""
 import traceback
 
+from addict import Dict as Addict
 import attr
 import click
-from addict import Dict as Addict
 
 from .api_auth import auth_flickr
 from .hugo_lib import parse_hugo_content
@@ -17,12 +16,14 @@ def blog():
 
 class DuplicateFlickrPostError(Exception):
     """Raised when multiple posts have 'flickr' flag set."""
+
     pass
 
 
 @attr.s
 class FlickrPhoto:
     """Represents a Flickr photo for blog post generation."""
+
     title = attr.ib()
     page_url = attr.ib()
     medium_url = attr.ib()
@@ -44,7 +45,7 @@ class FlickrPhoto:
 )
 def to_markdown(posts_dir, urls_file):
     """Generate markdown for Flickr photos in a Hugo blog post.
-    
+
     Reads Flickr photo URLs from a text file and appends markdown image
     links to the Hugo post that has 'flickr = true' in its front matter.
     """
@@ -56,10 +57,10 @@ def to_markdown(posts_dir, urls_file):
                 raise DuplicateFlickrPostError("Multiple flickr posts")
             this_post = filepath
             # do not break so we can check if multiple Flickr posts
-    
+
     if not this_post:
         raise click.ClickException("No post for flickr: Set 'flickr' to True in FM")
-    
+
     urls = read_urls(urls_file)
     click.echo(f"{len(urls)} URLs found")
     photo_ids = extract_photo_ids(urls)
@@ -78,7 +79,7 @@ def read_urls(filepath):
             stripped_line = line.strip()
             if stripped_line:
                 lines.append(stripped_line)
-    
+
     return lines
 
 
@@ -93,14 +94,14 @@ def extract_photo_ids(urls):
             photo_ids.append((url, photo_id))
         except Exception:
             click.echo(f"Invalid URL: {url}", err=True)
-    
+
     return photo_ids
 
 
 def resolve_photos(photo_ids):
     """Fetch photo information from Flickr API."""
     flickr = auth_flickr()
-    
+
     flickr_photos = []
     for url, photo_id in photo_ids:
         try:
@@ -108,7 +109,7 @@ def resolve_photos(photo_ids):
             photo = info["photo"]
             sizes = Addict(flickr.photos.getSizes(photo_id=photo_id))
             sizes = sizes["sizes"]
-            
+
             # keep base url => may include album /in/...
             page_url = url
             for size in sizes.size:
@@ -117,14 +118,14 @@ def resolve_photos(photo_ids):
                     medium_url = size.source
                     medium_dims = (size.width, size.height)
                     break
-            
+
             title = photo.title["_content"]
-            
+
             flickr_photos.append(FlickrPhoto(title, page_url, medium_url, medium_dims))
         except Exception as ex:
             click.echo(f"Exception occurred with photo {photo_id}: {ex}", err=True)
             traceback.print_exc()
-    
+
     return flickr_photos
 
 
@@ -138,7 +139,7 @@ def gen_markdown(photo_data):
             f'[![]({photo.medium_url}{hash_part} "{title}")]({photo.page_url})'
         )
         markdowns.append(markdown_link)
-    
+
     return markdowns
 
 
