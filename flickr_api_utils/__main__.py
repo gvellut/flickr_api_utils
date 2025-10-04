@@ -7,7 +7,7 @@ from .photo import photo
 from .upload import upload
 
 
-@click.group()
+@click.group(context_settings={"show_default": True})
 @click.version_option()
 def cli():
     pass

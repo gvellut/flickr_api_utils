@@ -34,7 +34,7 @@ from .xmp_utils import (
 API_RETRIES = 6
 API_RETRY_DELAY = 5
 
-UPLOAD_CONCURRENCY = 4
+UPLOAD_CONCURRENCY = 2
 QUICK_CONCURRENCY = 1
 
 NCOLS = 80
@@ -163,9 +163,8 @@ yes_option = click.option(
 
 
 abort_no_metadata_option = click.option(
-    "--no-abort-no-md",
+    "--abort-no-md/--no-abort-no-md",
     "is_abort_no_metadata",
-    is_flag=True,
     default=True,
     help="Abort if any file does not have metadata (title and tags)",
 )
