@@ -79,6 +79,26 @@ python -m flickr_api_utils photo download --start-id https://www.flickr.com/phot
 python -m flickr_api_utils photo download --start-id 54828191514
 ```
 
+## Launch Upload with VSCode
+
+Added to launch config:
+
+```json
+"envFile": "${workspaceFolder}/upload_params/plate_sixtfac.env"
+```
+
+In `<params>.env`:
+
+```sh
+FAU_FOLDER="/Volumes/CrucialX8/photos/20250807_plate_sixtfac/xs20"
+FAU_CREATE_ALBUM=1
+FAU_ALBUM_NAME="Randonnée des Grandes Platières à Sixt par les Gorges de Sales"
+# FAU_ALBUM_ID="https://www.flickr.com/photos/o_0/albums/72177720329227813"
+FAU_ARCHIVE=1
+```
+
+Switch as needed.
+
 ## Other Resources
 
 Find NSID by URL: https://www.flickr.com/services/api/flickr.urls.lookupUser.html
