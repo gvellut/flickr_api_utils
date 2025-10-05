@@ -12,3 +12,4 @@ prompts
 *.egg-info
 dist/
 build/
+upload_params/

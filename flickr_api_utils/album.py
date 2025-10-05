@@ -189,6 +189,7 @@ def reorder_albums(start_album, save_original):
 
     ordered_album_ids = partial_ordered_album_ids + list(map(attrgetter("id"), as_is))
 
+    click.echo("Reordering albums...")
     q_album_ids = ",".join(ordered_album_ids)
     flickr.photosets.orderSets(photoset_ids=q_album_ids)
     click.echo("Albums reordered")

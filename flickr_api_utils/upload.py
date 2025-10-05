@@ -111,12 +111,14 @@ folder_option = click.option(
     "folder",
     required=True,
     help="Folder to upload",
+    envvar="FAU_FOLDER",
 )
 
 album_option = click.option(
     "--album",
     "album_id",
     help="Album ID or URL to upload to",
+    envvar="FAU_ALBUM_ID",
 )
 
 create_album_option = click.option(
@@ -124,18 +126,21 @@ create_album_option = click.option(
     "is_create_album",
     is_flag=True,
     help="Create album",
+    envvar="FAU_CREATE_ALBUM",
 )
 
 album_name_option = click.option(
     "--album-name",
     "album_name",
     help="Album name to create",
+    envvar="FAU_ALBUM_NAME",
 )
 
 album_description_option = click.option(
     "--album-description",
     "album_description",
     help="Album description to create",
+    envvar="FAU_ALBUM_DESCRIPTION",
 )
 
 public_option = click.option(
@@ -175,6 +180,7 @@ archive_option = click.option(
     "is_archive",
     is_flag=True,
     help="Copy to uploaded folder",
+    envvar="FAU_ARCHIVE",
 )
 
 parallel_option = click.option(
@@ -206,14 +212,7 @@ def complete(
 ):
     flickr = auth_flickr()
 
-    upload_options = UploadOptions(**kwargs)
-
-    # Extract album ID from URL if needed
-    if upload_options.album_id:
-        upload_options.album_id = extract_album_id(upload_options.album_id)
-
-    if upload_options.is_create_album and not upload_options.album_name:
-        raise ValidationError("Album name is required for creation")
+    upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
     print("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
@@ -286,14 +285,7 @@ def complete(
 def finish_started(folder, last_photos_num, is_yes, parallel, is_archive, **kwargs):
     flickr = auth_flickr()
 
-    upload_options = UploadOptions(**kwargs)
-
-    # Extract album ID from URL if needed
-    if upload_options.album_id:
-        upload_options.album_id = extract_album_id(upload_options.album_id)
-
-    if upload_options.is_create_album and not upload_options.album_name:
-        raise ValidationError("Album name is required for creation")
+    upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
     now_ts = int(datetime.now().timestamp())
 
@@ -691,11 +683,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
 def diff(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
-    upload_options = UploadOptions(**kwargs)
-
-    # Extract album ID from URL if needed
-    if upload_options.album_id:
-        upload_options.album_id = extract_album_id(upload_options.album_id)
+    upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
     print("Getting local set of photos ...")
     files_set = filtered(folder, filter_label)
@@ -920,3 +908,55 @@ def add_to_album(flickr, album_id, photo_id):
     except Exception as e:
         msg = f"Error adding photo {photo_id} to album {album_id}: {e}"
         raise AddToAlbumError(msg) from e
+
+
+def _prepare_upload_options(flickr, upload_options):
+    if upload_options.album_id:
+        upload_options.album_id = extract_album_id(upload_options.album_id)
+
+    if upload_options.album_id and upload_options.is_create_album:
+        raise ValidationError("Cannot set both album ID and request album creation.")
+
+    if upload_options.album_id and upload_options.album_name:
+        raise ValidationError("Cannot set both album ID and album name.")
+
+    if upload_options.is_create_album and not upload_options.album_name:
+        raise ValidationError("Album name is required for creation")
+
+    if upload_options.is_create_album and upload_options.album_name:
+        _check_reuse_existing_album(flickr, upload_options)
+
+    return upload_options
+
+
+def _check_reuse_existing_album(flickr, upload_options):
+    # check just the first 100 : usually reused albums will not go further
+    try:
+        resp = Addict(flickr.photosets.getList(per_page=100, page=1))
+    except Exception as ex:
+        logger.warning(f"Unable to list albums: {ex}")
+        return
+
+    photosets_container = resp.get("photosets")
+    if not photosets_container:
+        return
+
+    photosets = photosets_container.get("photoset")
+    if not photosets:
+        return
+
+    if not isinstance(photosets, list):
+        photosets = [photosets]
+
+    for photoset in photosets:
+        title_attr = photoset.get("title")
+        title = title_attr.get("_content")
+        if title == upload_options.album_name:
+            print(
+                f"Album '{title}' already exists with id {photoset.id}. Will reuse it."
+            )
+            upload_options.album_id = photoset.id
+            upload_options.is_create_album = False
+            upload_options.album_name = None
+            upload_options.album_description = None
+            break

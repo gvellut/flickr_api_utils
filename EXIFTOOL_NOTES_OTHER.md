@@ -1,5 +1,9 @@
 # Exiftool
 
+See https://exiftool.org/forum/index.php?topic=1406.msg6136#msg6136 for note about FocalLengthIn35mmFormat
+APS-C to 35mm: x 1.5 base focal
+
+
 ```sh
 exiftool -m -XMP /Users/guilhem/Pictures/camera/20191108_fier/100MSDCF/DSC09670\ copy.JPG  -b
 exiftool -m "-XMP-dc:title<XMP:City" /Users/guilhem/Pictures/camera/20210417_grottesveyrier/xt30/corr -overwrite_original
