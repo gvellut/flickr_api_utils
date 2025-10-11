@@ -923,6 +923,10 @@ def _prepare_upload_options(flickr, upload_options):
     if upload_options.is_create_album and not upload_options.album_name:
         raise ValidationError("Album name is required for creation")
 
+    # case album_name and not is_create_album OK even though no effect
+    if not upload_options.is_create_album and upload_options.album_name:
+        print("Warning: Album name by itself has no effect. Forgotten Create Album?")
+
     if upload_options.is_create_album and upload_options.album_name:
         _check_reuse_existing_album(flickr, upload_options)
 
