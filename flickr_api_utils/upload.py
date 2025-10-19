@@ -271,6 +271,12 @@ def complete(
     print("End!")
 
 
+@upload.command("archive")
+@folder_option
+def archive(folder):
+    _copy_to_uploaded(folder)
+
+
 @upload.command("finish")
 @folder_option
 @last_photos_num_option
