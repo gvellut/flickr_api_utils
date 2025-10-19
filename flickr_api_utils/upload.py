@@ -280,9 +280,8 @@ def complete(
 @album_name_option
 @album_description_option
 @parallel_option
-@yes_option
 @archive_option
-def finish_started(folder, last_photos_num, is_yes, parallel, is_archive, **kwargs):
+def finish_started(folder, last_photos_num, parallel, is_archive, **kwargs):
     flickr = auth_flickr()
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
@@ -524,7 +523,7 @@ def _get_uploaded_photos_indirect(
 
 def _print_album_options(flickr, upload_options):
     if upload_options.is_create_album:
-        print(f"Will create album {upload_options.album_name}")
+        print(f"Will create album '{upload_options.album_name}'")
     elif upload_options.album_id:
         try:
             resp = flickr.photosets.getInfo(photoset_id=upload_options.album_id)
