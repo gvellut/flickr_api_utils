@@ -17,7 +17,7 @@ import piexif
 from PIL import ExifTags, Image
 
 
-@click.group()
+@click.group("local")
 def local():
     """Local file operations."""
     pass

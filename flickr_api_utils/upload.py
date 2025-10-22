@@ -190,7 +190,7 @@ parallel_option = click.option(
 )
 
 
-@click.group()
+@click.group("upload")
 def upload():
     pass
 

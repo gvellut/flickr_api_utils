@@ -15,7 +15,7 @@ from .flickr_utils import get_photos, get_photostream_photos
 from .url_utils import extract_album_id, extract_photo_id
 
 
-@click.group()
+@click.group("photo")
 def photo():
     """Photo management commands."""
     pass
@@ -242,7 +242,8 @@ SORT_PARAMS = [
 )
 @click.option(
     "--limit",
-    help="Max number of photos to retrieve. Ignored for albums.",
+    type=int,
+    help="Max number of photos to retrieve.",
     default=100,
 )
 @click.option(
@@ -308,6 +309,7 @@ def find_replace(
         images = get_photos(flickr, album_id)
         click.echo(f"Processing photos in album {album_id}...")
 
+        processed_count = 0
         is_process = False
         for image in images:
             if start_id is None or image.id == start_id:
@@ -316,11 +318,16 @@ def find_replace(
             if not is_process:
                 continue
 
+            if limit and processed_count >= limit:
+                break
+
             _process_photo(
                 flickr, image, find_title, replace_title, remove_tag, add_tags
             )
+            processed_count += 1
 
             # Include photo with end_id in processing
+            # TODO if bad order : will continue until the last photo in album
             if end_id is not None and image.id == end_id:
                 break
     else:

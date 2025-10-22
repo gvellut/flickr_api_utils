@@ -8,7 +8,7 @@ from .api_auth import auth_flickr
 from .hugo_lib import parse_hugo_content
 
 
-@click.group()
+@click.group("blog")
 def blog():
     """Blog-related commands."""
     pass

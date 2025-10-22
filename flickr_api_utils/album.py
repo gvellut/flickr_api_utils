@@ -13,7 +13,7 @@ from .flickr_utils import get_photos
 from .url_utils import extract_album_id, extract_photo_id
 
 
-@click.group()
+@click.group("album")
 def album():
     """Album management commands."""
     pass

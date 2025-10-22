@@ -1,6 +1,5 @@
 from datetime import datetime
 import logging
-from time import sleep
 
 from addict import Dict as Addict
 

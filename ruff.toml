@@ -14,11 +14,10 @@ select = [
     # flake8-simplify
     #"SIM",
     # isort
-    # "I",
-    "ISC",
+    "I",
 ]
 # do not auto del the unused imports
-unfixable = ["F401", "ISC001"]
+unfixable = ["F401"]
 
 [lint.isort]
 combine-as-imports = true

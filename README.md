@@ -23,6 +23,8 @@ You need a JSON file named `api_key.json` in your working directory with your Fl
 
 To get API credentials, visit: https://www.flickr.com/services/api/misc.api_keys.html
 
+When the Flickr authorization opens in the browser and you accept, the page will communicate with the script to transmit the token. It will be cached for later in the `.flickr` folder in the project (listed in `.gitignore`). That folder can be deleted to clear the cache and force a relogin.
+
 ## Usage
 
 The utilities are organized into command groups:
