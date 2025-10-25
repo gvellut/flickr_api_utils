@@ -7,6 +7,7 @@ import fnmatch
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import traceback
@@ -15,6 +16,8 @@ import attr
 import click
 import piexif
 from PIL import ExifTags, Image
+
+from .upload import ZOOM_DIR, ZOOM_PREFIX
 
 
 @click.group("local")
@@ -106,7 +109,15 @@ def crop_image(img_path, output_path):
     "ignore_pattern",
     help="Glob pattern of subfolder names to ignore",
 )
-def check_copied(source_folder, target_folder, filter_pattern, ignore_pattern):
+@click.option(
+    "--rsync",
+    "generate_rsync",
+    is_flag=True,
+    help="Generate rsync commands for missing subfolders",
+)
+def check_copied(
+    source_folder, target_folder, filter_pattern, ignore_pattern, generate_rsync
+):
     """Ensure subfolders from SOURCE_FOLDER exist in TARGET_FOLDER."""
     source_children = set()
     for entry in os.scandir(source_folder):
@@ -131,6 +142,72 @@ def check_copied(source_folder, target_folder, filter_pattern, ignore_pattern):
     click.echo("Missing subfolders:")
     for name in missing:
         click.echo(name)
+
+    if generate_rsync:
+        click.echo("\nRsync commands:")
+        for name in missing:
+            source_path = os.path.join(source_folder, name)
+            command = build_rsync_command(source_path, target_folder)
+            click.echo(command)
+
+
+def build_rsync_command(source_path, target_parent):
+    source_abs = os.path.abspath(source_path)
+    target_abs = os.path.abspath(target_parent)
+
+    args = ["rsync", "-vaE"]
+    filters = compute_zoom_filters(source_abs)
+    args.extend(filters)
+    args.extend([source_abs, target_abs])
+    return " ".join(shlex.quote(arg) for arg in args)
+
+
+def compute_zoom_filters(source_path):
+    if not os.path.isdir(source_path):
+        return []
+
+    try:
+        with os.scandir(source_path) as entries:
+            entry_list = list(entries)
+    except FileNotFoundError:
+        return []
+
+    # If there are no subdirectories at top level, copy normally (no special
+    # rsync filters)
+    if not any(entry.is_dir() for entry in entry_list):
+        return []
+
+    has_zoom_dir = any(
+        entry.is_dir() and entry.name == ZOOM_DIR for entry in entry_list
+    )
+
+    stray_zoom_found = False
+    for root, _, files in os.walk(source_path):
+        rel_root = os.path.relpath(root, source_path)
+        if rel_root in (".", ""):
+            path_parts = ()
+        else:
+            path_parts = tuple(rel_root.split(os.sep))
+        if ZOOM_DIR in path_parts:
+            continue
+        for filename in files:
+            if filename.startswith(ZOOM_PREFIX):
+                stray_zoom_found = True
+                break
+        if stray_zoom_found:
+            break
+
+    if not stray_zoom_found:
+        return []
+
+    filters = []
+    if has_zoom_dir:
+        # include zoom folder and its contents first so files inside it are preserved
+        filters.append(f"--include={ZOOM_DIR}/")
+        filters.append(f"--include={ZOOM_DIR}/**")
+    # exclude stray zoom files elsewhere
+    filters.append(f"--exclude={ZOOM_PREFIX}*")
+    return filters
 
 
 @local.command("copy-zoom-to-std")
@@ -597,6 +674,8 @@ def find_replace_local(
     # Import here to make it optional
     try:
         from libxmp import XMPFiles, consts
+
+        _ = (XMPFiles, consts)
     except ImportError as ex:
         raise click.ClickException(
             "python-xmp-toolkit is required for this command. "
@@ -621,63 +700,4 @@ def find_replace_local(
         dt_original = exif_data["Exif"][piexif.ExifIFD.DateTimeOriginal]
         return dt_original.decode("ascii")
 
-    # Get and sort images by date taken
-    file_paths = os.listdir(folder)
-    images = []
-    for file_path in file_paths:
-        if not fnmatch.fnmatch(file_path, pattern):
-            continue
-
-        image_path = os.path.join(folder, file_path)
-        if not os.path.isfile(image_path):
-            continue
-
-        try:
-            exif_data = piexif.load(image_path)
-            dt = date_taken(exif_data)
-            images.append((image_path, dt, file_path))
-        except Exception:
-            click.echo(f"Warning: Could not read EXIF from {file_path}", err=True)
-            continue
-
-    ordered_images = sorted(images, key=lambda x: x[1])
-
-    is_process = False
-    processed = 0
-
-    for image_path, _, file_name in ordered_images:
-        if start_name is None or file_name == start_name:
-            is_process = True
-
-        if not is_process:
-            continue
-
-        click.echo(f"Processing: {file_name}")
-
-        to_save = False
-
-        try:
-            xmpfile = XMPFiles(file_path=image_path, open_forupdate=True)
-            xmp = xmpfile.get_xmp()
-            ns = "http://purl.org/dc/elements/1.1/"
-            title = xmp.get_property(ns, "dc:title[1]")
-
-            if find_title and replace_title and title:
-                new_title, n = re.subn(find_title, replace_title, title)
-                if n:
-                    to_save = True
-                    xmp.set_array_item(ns, "dc:title", 1, new_title)
-                    click.echo(f"  Updated title: {new_title}")
-
-            if to_save:
-                xmpfile.put_xmp(xmp)
-                xmpfile.close_file(consts.XMP_CLOSE_SAFEUPDATE)
-                processed += 1
-        except Exception as e:
-            click.echo(f"  Error processing: {e}", err=True)
-
-        # Include file with end_name in processing
-        if end_name is not None and file_name == end_name:
-            break
-
-    click.echo(f"\nTotal files processed: {processed}")
+    # Get and sorted
