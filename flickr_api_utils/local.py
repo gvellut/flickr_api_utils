@@ -91,8 +91,9 @@ def crop_image(img_path, output_path):
 @local.command("check-copied")
 @click.option(
     "--source",
-    "source_folder",
+    "source_folders",
     type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=str),
+    multiple=True,
 )
 @click.option(
     "--target",
@@ -116,19 +117,22 @@ def crop_image(img_path, output_path):
     help="Generate rsync commands for missing subfolders",
 )
 def check_copied(
-    source_folder, target_folder, filter_pattern, ignore_pattern, generate_rsync
+    source_folders, target_folder, filter_pattern, ignore_pattern, generate_rsync
 ):
     """Ensure subfolders from SOURCE_FOLDER exist in TARGET_FOLDER."""
     source_children = set()
-    for entry in os.scandir(source_folder):
-        if not entry.is_dir():
-            continue
-        name = entry.name
-        if filter_pattern and not fnmatch.fnmatch(name, filter_pattern):
-            continue
-        if ignore_pattern and fnmatch.fnmatch(name, ignore_pattern):
-            continue
-        source_children.add(name)
+    source_children_origin = {}
+    for source_folder in source_folders:
+        for entry in os.scandir(source_folder):
+            if not entry.is_dir():
+                continue
+            name = entry.name
+            if filter_pattern and not fnmatch.fnmatch(name, filter_pattern):
+                continue
+            if ignore_pattern and fnmatch.fnmatch(name, ignore_pattern):
+                continue
+            source_children.add(name)
+            source_children_origin[name] = source_folder
 
     target_children = {
         entry.name for entry in os.scandir(target_folder) if entry.is_dir()
@@ -140,8 +144,15 @@ def check_copied(
         return
 
     click.echo("Missing subfolders:")
+    grouped = {}
     for name in missing:
-        click.echo(name)
+        origin = source_children_origin.get(name, "<unknown>")
+        grouped.setdefault(origin, []).append(name)
+
+    for origin in sorted(grouped):
+        click.echo(f"{origin}:")
+        for n in sorted(grouped[origin]):
+            click.echo(f"  {n}")
 
     if generate_rsync:
         click.echo("\nRsync commands:")
