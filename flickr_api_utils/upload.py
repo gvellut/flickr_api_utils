@@ -330,25 +330,31 @@ def _copy_to_uploaded(folder):
     os.makedirs(to_dir, exist_ok=True)
 
     try:
-        print(f"Moving zoom photos to '{ZOOM_DIR}' ...")
-        has_moved = False
-        zoom_dir = os.path.join(super_folder, ZOOM_DIR)
-        for item_name in os.listdir(folder):
-            source_item_path = os.path.join(folder, item_name)
-            if os.path.isfile(source_item_path) and item_name.startswith(ZOOM_PREFIX):
-                has_moved = True
-                dest_item_path = os.path.join(zoom_dir, item_name)
-                shutil.move(source_item_path, dest_item_path)
-        if has_moved:
-            print("Sucessfully moved")
-        else:
-            print("Nothing to move")
+        # Move zoom photos into tz95 directory (if any)
+        move_zoom_photos(super_folder, folder)
 
         print(f"Archiving '{super_folder}' to '{to_dir}' ...")
         shutil.move(super_folder, to_dir)
         print("Successfully archived!")
     except Exception as e:
         logger.error(f"Error archiving '{super_folder}' to '{to_dir}': {e}")
+
+
+def move_zoom_photos(super_folder, folder):
+    print(f"Moving zoom photos to '{ZOOM_DIR}' ...")
+    has_moved = False
+    zoom_dir = os.path.join(super_folder, ZOOM_DIR)
+    for item_name in os.listdir(folder):
+        source_item_path = os.path.join(folder, item_name)
+        if os.path.isfile(source_item_path) and item_name.startswith(ZOOM_PREFIX):
+            has_moved = True
+            dest_item_path = os.path.join(zoom_dir, item_name)
+            shutil.move(source_item_path, dest_item_path)
+    if has_moved:
+        print("Sucessfully moved")
+    else:
+        print("Nothing to move")
+    return has_moved
 
 
 def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
