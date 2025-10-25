@@ -85,6 +85,54 @@ def crop_image(img_path, output_path):
             img.save(output_path, quality=95)
 
 
+@local.command("check-copied")
+@click.option(
+    "--source",
+    "source_folder",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=str),
+)
+@click.option(
+    "--target",
+    "target_folder",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=str),
+)
+@click.option(
+    "--filter",
+    "filter_pattern",
+    help="Glob pattern of subfolder names to include",
+)
+@click.option(
+    "--ignore",
+    "ignore_pattern",
+    help="Glob pattern of subfolder names to ignore",
+)
+def check_copied(source_folder, target_folder, filter_pattern, ignore_pattern):
+    """Ensure subfolders from SOURCE_FOLDER exist in TARGET_FOLDER."""
+    source_children = set()
+    for entry in os.scandir(source_folder):
+        if not entry.is_dir():
+            continue
+        name = entry.name
+        if filter_pattern and not fnmatch.fnmatch(name, filter_pattern):
+            continue
+        if ignore_pattern and fnmatch.fnmatch(name, ignore_pattern):
+            continue
+        source_children.add(name)
+
+    target_children = {
+        entry.name for entry in os.scandir(target_folder) if entry.is_dir()
+    }
+
+    missing = sorted(source_children - target_children)
+    if not missing:
+        click.echo("All subfolders from source exist in target.")
+        return
+
+    click.echo("Missing subfolders:")
+    for name in missing:
+        click.echo(name)
+
+
 @local.command("copy-zoom-to-std")
 @click.argument("folder_path")
 def copy_zoom_to_std(folder_path):
