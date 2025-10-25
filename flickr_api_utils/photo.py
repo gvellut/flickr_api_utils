@@ -21,6 +21,36 @@ def photo():
     pass
 
 
+@photo.command("check-copied")
+@click.option(
+    "--source",
+    "source_folder",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=str),
+)
+@click.option(
+    "--target",
+    "target_folder",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=str),
+)
+def check_copied(source_folder, target_folder):
+    """Ensure subfolders from SOURCE_FOLDER exist in TARGET_FOLDER."""
+    source_children = {
+        entry.name for entry in os.scandir(source_folder) if entry.is_dir()
+    }
+    target_children = {
+        entry.name for entry in os.scandir(target_folder) if entry.is_dir()
+    }
+
+    missing = sorted(source_children - target_children)
+    if not missing:
+        click.echo("All subfolders from source exist in target.")
+        return
+
+    click.echo("Missing subfolders:")
+    for name in missing:
+        click.echo(name)
+
+
 @photo.command()
 @click.option(
     "--album",
