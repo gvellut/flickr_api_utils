@@ -1,7 +1,6 @@
 import click
 
 from .album import album
-from .blog import blog
 from .local import local
 from .photo import photo
 from .upload import upload
@@ -16,7 +15,6 @@ def cli():
 cli.add_command(photo)
 cli.add_command(album)
 cli.add_command(local)
-cli.add_command(blog)
 cli.add_command(upload)
 
 if __name__ == "__main__":
