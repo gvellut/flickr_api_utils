@@ -7,15 +7,6 @@ import click
 from .api_auth import auth_flickr
 from .hugo_lib import parse_hugo_content
 
-DEFAULT_URLS_FILE = (
-    "/Users/guilhem/Documents/projects/website/blog-vellut.com/flickr_gen/urls.txt"
-)
-
-DEFAULT_POSTS_DIR = (
-    "/Users/guilhem/Documents/projects/website/blog-vellut.com/"
-    "hugo_project/content/post"
-)
-
 
 @click.group("blog")
 def blog():
@@ -38,15 +29,15 @@ class FlickrPhoto:
 @blog.command("to-markdown")
 @click.option(
     "--posts-dir",
-    default=DEFAULT_POSTS_DIR,
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
     help="Hugo posts directory (e.g., hugo_project/content/post)",
+    envvar="PHU_POSTS_DIR",
 )
 @click.option(
     "--urls-file",
-    default=DEFAULT_URLS_FILE,
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help="Text file containing Flickr photo URLs (one per line)",
+    default="PHU_URLS_FILE",
 )
 def to_markdown(posts_dir, urls_file):
     """Generate markdown for Flickr photos in a Hugo blog post.
