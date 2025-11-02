@@ -37,7 +37,7 @@ class FlickrPhoto:
     "--urls-file",
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help="Text file containing Flickr photo URLs (one per line)",
-    default="PHU_URLS_FILE",
+    envvar="PHU_URLS_FILE",
 )
 def to_markdown(posts_dir, urls_file):
     """Generate markdown for Flickr photos in a Hugo blog post.
