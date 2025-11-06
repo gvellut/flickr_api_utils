@@ -262,7 +262,8 @@ def copy_zoom_to_std(folder_path):
         if os.path.isfile(source_item_path):
             try:
                 shutil.copy2(source_item_path, dest_item_path)
-                click.echo(f"Copied '{item_name}'")
+                if copied_count % 20 == 0:
+                    click.echo(f"Copy #{copied_count + 1}: '{item_name}'")
                 copied_count += 1
             except Exception as e:
                 click.echo(f"Error copying '{item_name}': {e}")
