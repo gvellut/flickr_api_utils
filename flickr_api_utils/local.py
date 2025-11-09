@@ -255,7 +255,7 @@ def copy_zoom_to_std(folder_path):
 
     copied_count = 0
 
-    for item_name in os.listdir(source_dir_path):
+    for item_name in sorted(os.listdir(source_dir_path)):
         source_item_path = os.path.join(source_dir_path, item_name)
         dest_item_path = os.path.join(dest_dir_path, item_name)
 
