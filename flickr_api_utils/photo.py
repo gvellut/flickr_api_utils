@@ -233,18 +233,19 @@ SORT_PARAMS = [
     ),
 )
 @click.option(
-    "--remove-tag",
-    help="Tag to remove from photos",
+    "--remove-tags",
+    help="Tags to remove from photos",
+    multiple=True,
 )
 @click.option(
     "--add-tags",
-    help="Comma-separated tags to add to photos (e.g., 'tag1,tag2')",
+    help="Tags to add to photos",
+    multiple=True,
 )
 @click.option(
     "--limit",
     type=int,
     help="Max number of photos to retrieve.",
-    default=100,
 )
 @click.option(
     "--sort",
@@ -260,7 +261,7 @@ def find_replace(
     end_id,
     find_title,
     replace_title,
-    remove_tag,
+    remove_tags,
     add_tags,
     sort,
     limit,
@@ -280,7 +281,7 @@ def find_replace(
     flickr = auth_flickr()
 
     # Validate that at least one operation is specified
-    if not find_title and not remove_tag and not add_tags:
+    if not find_title and not remove_tags and not add_tags:
         raise click.ClickException(
             "At least one operation must be specified: "
             "--find-title/--replace-title, --remove-tag, or --add-tags"
@@ -295,6 +296,16 @@ def find_replace(
         raise click.ClickException(
             "--find-title is required when --replace-title is specified"
         )
+
+    if remove_tags:
+        # Flickr does not allow space at start or end of tag : so remove ie probably
+        # user error
+        remove_tags = set(tag.strip() for tag in remove_tags)
+
+    if add_tags:
+        tag_list = [f'"{tag.strip()}"' for tag in add_tags]
+        # space separated for API
+        add_tags = ",".join(tag_list)
 
     # Extract IDs from URLs if needed
     if start_id:
@@ -322,7 +333,7 @@ def find_replace(
                 break
 
             _process_photo(
-                flickr, image, find_title, replace_title, remove_tag, add_tags
+                flickr, image, find_title, replace_title, remove_tags, add_tags
             )
             processed_count += 1
 
@@ -344,11 +355,11 @@ def find_replace(
 
         for image in images:
             _process_photo(
-                flickr, image, find_title, replace_title, remove_tag, add_tags
+                flickr, image, find_title, replace_title, remove_tags, add_tags
             )
 
 
-def _process_photo(flickr, image, find_title, replace_title, remove_tag, add_tags):
+def _process_photo(flickr, image, find_title, replace_title, remove_tags, add_tags):
     """Process a single photo with title replacement and/or tag operations."""
     click.echo(f"Processing {image.id} [{image.title}] ...")
 
@@ -360,24 +371,21 @@ def _process_photo(flickr, image, find_title, replace_title, remove_tag, add_tag
             click.echo(f"  Updated title: {title}")
 
     # Tag operations (need to get full photo info for tags)
-    if remove_tag or add_tags:
+    if remove_tags or add_tags:
         info = Addict(flickr.photos.getInfo(photo_id=image.id))
 
         # Remove tag
-        if remove_tag:
+        if remove_tags:
             for tag in info.photo.tags.tag:
-                if tag["raw"] == remove_tag:
+                if tag["raw"] in remove_tags:
                     tag_id_to_remove = tag.id
                     flickr.photos.removeTag(tag_id=tag_id_to_remove)
-                    click.echo(f"  Removed tag: {remove_tag}")
-                    break
+                    click.echo(f"  Removed tag: {tag['raw']}")
 
         # Add tags
         if add_tags:
-            # Format tags with quotes for multi-word tags
-            tag_list = [f'"{tag.strip()}"' for tag in add_tags.split(",")]
-            tags_str = " ".join(tag_list)
-            flickr.photos.addTags(photo_id=image.id, tags=tags_str)
+            # add_tags already transformed into correct arg shape for API
+            flickr.photos.addTags(photo_id=image.id, tags=add_tags)
             click.echo(f"  Added tags: {add_tags}")
 
 
