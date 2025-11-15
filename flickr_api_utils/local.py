@@ -19,6 +19,8 @@ from PIL import ExifTags, Image
 
 from .upload import ZOOM_DIR, ZOOM_PREFIX
 
+logger = logging.getLogger(__name__)
+
 
 @click.group("local")
 def local():
@@ -38,13 +40,11 @@ def crop43(input_folder, output_folder):
     OUTPUT_FOLDER.
     Preserves EXIF data.
     """
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
 
     os.makedirs(output_folder, exist_ok=True)
     count = 0
 
-    if not click.confirm(f"Crop to {output_folder}. Confirm?"):
+    if not click.confirm(f"Crop {input_folder} to {output_folder}. Confirm?"):
         click.echo("Aborted by user")
         return
 
@@ -76,16 +76,21 @@ def crop_image(img_path, output_path):
 
             new_height = int(img_rot.width * 4 / 3)
             img_cropped = img_rot.crop((0, 0, img_rot.width, new_height))
+        else:  # Horizontal image
+            new_width = int(img.height * 4 / 3)
+            left = img.width - new_width
+            img_cropped = img.crop((left, 0, img.width, img.height))
 
-            # Reset orientation
-            try:
-                exif_bytes = piexif.dump({"0th": {piexif.ImageIFD.Orientation: 1}})
-                img_cropped.save(output_path, exif=exif_bytes, quality=95)
-            except Exception:
-                img_cropped.save(output_path, quality=95)
+        if "exif" in img.info:
+            # clear the orientation in exif since saved pixels already rotated
+            exif_dict = piexif.load(img.info["exif"])
+            exif_dict["0th"][piexif.ImageIFD.Orientation] = 1
+            exif_bytes = piexif.dump(exif_dict)
+            img_cropped.save(
+                output_path, "JPEG", subsampling=0, quality=95, exif=exif_bytes
+            )
         else:
-            # Horizontal: just copy
-            img.save(output_path, quality=95)
+            img_cropped.save(output_path, "JPEG", subsampling=0, quality=95)
 
 
 @local.command("check-copied")
