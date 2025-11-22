@@ -12,4 +12,5 @@ prompts
 *.egg-info
 dist/
 build/
-upload_params/
+upload_params/*.env
+!upload_params/__template.env
