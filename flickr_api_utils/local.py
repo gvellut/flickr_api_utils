@@ -121,8 +121,19 @@ def crop_image(img_path, output_path):
     is_flag=True,
     help="Generate rsync commands for missing subfolders",
 )
+@click.option(
+    "--all",
+    "rsync_all",
+    is_flag=True,
+    help="Generate rsync commands for all subfolders, not just the missing",
+)
 def check_copied(
-    source_folders, target_folder, filter_pattern, ignore_pattern, generate_rsync
+    source_folders,
+    target_folder,
+    filter_pattern,
+    ignore_pattern,
+    generate_rsync,
+    rsync_all,
 ):
     """Ensure subfolders from SOURCE_FOLDER exist in TARGET_FOLDER."""
     source_children = set()
@@ -146,25 +157,28 @@ def check_copied(
     missing = sorted(source_children - target_children)
     if not missing:
         click.echo("All subfolders from source exist in target.")
-        return
-
-    click.echo("Missing subfolders:")
-    grouped = {}
-    for name in missing:
-        origin = source_children_origin.get(name, "<unknown>")
-        grouped.setdefault(origin, []).append(name)
-
-    for origin in sorted(grouped):
-        click.echo(f"{origin}:")
-        for n in sorted(grouped[origin]):
-            click.echo(f"  {n}")
-
-    if generate_rsync:
-        click.echo("\nRsync commands:")
+        # do not return : rsync can still be generated if all
+    else:
+        click.echo("Missing subfolders:")
+        grouped = {}
         for name in missing:
+            origin = source_children_origin.get(name, "<unknown>")
+            grouped.setdefault(origin, []).append(name)
+
+        for origin in sorted(grouped):
+            click.echo(f"{origin}:")
+            for n in sorted(grouped[origin]):
+                click.echo(f"  {n}")
+
+    rsync_folders = missing if not rsync_all else source_children
+    if generate_rsync and rsync_folders:
+        click.echo("\nRsync commands:\n\n")
+        for name in rsync_folders:
+            source_folder = source_children_origin[name]
             source_path = os.path.join(source_folder, name)
             command = build_rsync_command(source_path, target_folder)
             click.echo(command)
+        click.echo("\n\n")
 
 
 def build_rsync_command(source_path, target_parent):
@@ -172,16 +186,18 @@ def build_rsync_command(source_path, target_parent):
     target_abs = os.path.abspath(target_parent)
 
     args = ["rsync", "-vaE"]
+
+    args.append("--exclude=.DS_Store")
+
     filters = compute_zoom_filters(source_abs)
     args.extend(filters)
+
     args.extend([source_abs, target_abs])
+
     return " ".join(shlex.quote(arg) for arg in args)
 
 
 def compute_zoom_filters(source_path):
-    if not os.path.isdir(source_path):
-        return []
-
     try:
         with os.scandir(source_path) as entries:
             entry_list = list(entries)
