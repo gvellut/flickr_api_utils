@@ -45,7 +45,7 @@ def crop43(input_folder, output_folder):
     count = 0
 
     if not click.confirm(f"Crop {input_folder} to {output_folder}. Confirm?"):
-        click.echo("Aborted by user")
+        logger.warning("Aborted by user")
         return
 
     for filename in sorted(list(os.listdir(input_folder))):
@@ -156,29 +156,29 @@ def check_copied(
 
     missing = sorted(source_children - target_children)
     if not missing:
-        click.echo("All subfolders from source exist in target.")
+        logger.info("All subfolders from source exist in target.")
         # do not return : rsync can still be generated if all
     else:
-        click.echo("Missing subfolders:")
+        logger.info("Missing subfolders:")
         grouped = {}
         for name in missing:
             origin = source_children_origin.get(name, "<unknown>")
             grouped.setdefault(origin, []).append(name)
 
         for origin in sorted(grouped):
-            click.echo(f"{origin}:")
+            logger.info(f"{origin}:")
             for n in sorted(grouped[origin]):
-                click.echo(f"  {n}")
+                logger.info(f"  {n}")
 
     rsync_folders = missing if not rsync_all else source_children
     if generate_rsync and rsync_folders:
-        click.echo("\nRsync commands:\n\n")
+        logger.info("Rsync commands:\n\n")
         for name in rsync_folders:
             source_folder = source_children_origin[name]
             source_path = os.path.join(source_folder, name)
             command = build_rsync_command(source_path, target_folder)
-            click.echo(command)
-        click.echo("\n\n")
+            logger.info(command)
+        logger.info("\n\n")
 
 
 def build_rsync_command(source_path, target_parent):
@@ -260,18 +260,18 @@ def copy_zoom_to_std(folder_path):
     source_dir_path = os.path.join(folder_path, folder_zoom)
     dest_dir_path = os.path.join(folder_path, folder_std)
 
-    click.echo(f"Source directory: {source_dir_path}")
-    click.echo(f"Destination directory: {dest_dir_path}")
+    logger.info(f"Source directory: {source_dir_path}")
+    logger.info(f"Destination directory: {dest_dir_path}")
 
     if not os.path.isdir(source_dir_path):
-        click.echo(f"Error: Source directory '{folder_zoom}' not found.")
+        logger.error(f"Source directory '{folder_zoom}' not found.")
         return
     if not os.path.isdir(dest_dir_path):
-        click.echo(f"Error: Destination directory '{folder_std}' not found.")
+        logger.error(f"Destination directory '{folder_std}' not found.")
         return
 
     if not click.confirm("Proceed with copying files?"):
-        click.echo("Operation cancelled by user.")
+        logger.warning("Operation cancelled by user.")
         return
 
     copied_count = 0
@@ -284,14 +284,14 @@ def copy_zoom_to_std(folder_path):
             try:
                 shutil.copy2(source_item_path, dest_item_path)
                 if copied_count % 20 == 0:
-                    click.echo(f"Copy #{copied_count + 1}: '{item_name}'")
+                    logger.info(f"Copy #{copied_count + 1}: '{item_name}'")
                 copied_count += 1
             except Exception as e:
-                click.echo(f"Error copying '{item_name}': {e}")
+                logger.error(f"Error copying '{item_name}': {e}")
         else:
-            click.echo(f"Skipping '{item_name}', not a file.")
+            logger.warning(f"Skipping '{item_name}', not a file.")
 
-    click.echo(f"\nCopy complete. {copied_count} file(s) copied.")
+    logger.info(f"Copy complete. {copied_count} file(s) copied.")
 
 
 # Copy SD card functionality
@@ -411,19 +411,19 @@ def to_dates(date_s, volume: PhotoVolume):
             if dirs:
                 # replace with last folder in order
                 date_s = dirs[0]
-                print(f"last => {date_s}")
+                logger.info(f"last => {date_s}")
             else:
                 # no folder (new camera maybe?)
                 # dummy date far in the past
                 date_s = "10000101"
-                print("No existing folder: From the beginning")
+                logger.info("No existing folder: From the beginning")
 
         # only first 8 characters in case title copied
         date_s = date_s[:8]
         date_since = datetime.strptime(date_s, "%Y%m%d").date()
         filtered = filter_after(find_all_dates(volume.path), date_since)
         if not filtered:
-            print("No photo since last date.")
+            logger.warning("No photo since last date.")
         return filtered
 
     return datetime.strptime(date_s, DATE_FMT).date()
@@ -514,7 +514,7 @@ def copy_to_folder(volume: PhotoVolume, folder_base, f_date):
             if filter_by_date(last_modified_date.date(), f_date):
                 counter += 1
                 if counter % 20 == 0:
-                    print(f"Copy #{counter}: {file_path}")
+                    logger.info(f"Copy #{counter}: {file_path}")
                 shutil.copy2(file_path, output_folder)
 
 
@@ -546,14 +546,14 @@ def copy_sd(name, date_spec, is_eject):
     volume = get_volume(MEDIA)
 
     if not volume:
-        click.echo("No relevant SD card. Volume not renamed?")
+        logger.error("No relevant SD card. Volume not renamed?")
         return
 
     dates = to_dates(date_spec, volume)
     if not isinstance(dates, list):
         dates = [dates]
     if not dates:
-        click.echo("No image found: Is the SD card inserted and mounted?")
+        logger.info("No image found: Is the SD card inserted and mounted?")
         return
 
     dates = sorted(dates)
@@ -569,21 +569,20 @@ def copy_sd(name, date_spec, is_eject):
         f"The images will be copied from : {volume_mapping} to {text_folder} "
         f"(dates: {text_date})\nConfirm?"
     ):
-        click.echo("Aborted by user")
+        logger.warning("Aborted by user")
         return
 
     for i, f_date in enumerate(dates):
         folder_base = output_folder_base[i]
-        print(f"Copy to {folder_base} (date: {f_date}) ...")
+        logger.info(f"Copy to {folder_base} (date: {f_date}) ...")
         copy_to_folder(volume, folder_base, f_date)
 
     try:
         if is_eject:
-            print(f"Ejecting {volume[0]} ...")
+            logger.info(f"Ejecting {volume[0]} ...")
             eject_volume(volume[0])
     except Exception:
-        print(f"Error ejecting {volume[0]}")
-        traceback.print_exc()
+        logger.exception(f"Error ejecting {volume[0]}")
 
 
 @local.command("copy-all")
@@ -616,9 +615,9 @@ def copy_all(source, dest, pattern):
             dest_path = os.path.join(dest, file_name)
             shutil.copy(source_path, dest_path)
             copied += 1
-            click.echo(f"Copied: {file_name}")
+            logger.info(f"Copied: {file_name}")
 
-    click.echo(f"\nTotal files copied: {copied}")
+    logger.info(f"Total files copied: {copied}")
 
 
 @local.command("list-not-uploaded")
@@ -643,9 +642,9 @@ def list_not_uploaded(folder, pattern):
     for entry in list_of_files:
         if not fnmatch.fnmatch(entry, pattern):
             unmatched.append(entry)
-            click.echo(entry)
+            logger.info(entry)
 
-    click.echo(f"\nTotal unmatched entries: {len(unmatched)}")
+    logger.info(f"Total unmatched entries: {len(unmatched)}")
 
 
 # XMP library setup for find-replace-local

@@ -211,12 +211,13 @@ def complete(
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
-    print("Getting files to upload ...")
+    logger.info("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
     if not files_to_upload:
-        raise click.ClickException("No files to upload. Abort!")
+        logger.error("No files to upload. Abort!")
+        return
 
-    print(f"{len(files_to_upload)} files to upload")
+    logger.info(f"{len(files_to_upload)} files to upload")
 
     empty_metadata = []
     for file_path, xmp_root in files_to_upload:
@@ -228,22 +229,23 @@ def complete(
 
     if empty_metadata:
         no_metadata = ", ".join(os.path.basename(f) for f in empty_metadata)
-        print(f"Files without metadata: {no_metadata}")
+        logger.info(f"Files without metadata: {no_metadata}")
         if is_abort_no_metadata:
-            raise click.ClickException("Some files have no metadata. Abort!")
+            logger.error("Some files have no metadata. Abort!")
+            return
 
     _print_album_options(flickr, upload_options)
     if upload_options.is_public:
-        print("Will make photos public")
+        logger.info("Will make photos public")
     else:
-        print("Will keep photos private")
+        logger.info("Will keep photos private")
 
     if is_archive:
-        print("Will move to archive")
+        logger.info("Will move to archive")
 
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
-            print("Aborted by user")
+            logger.warning("Aborted by user")
             exit(1)
 
     # so close approximate value of date taken start from the POV of Flickr
@@ -255,7 +257,8 @@ def complete(
         flickr, now_ts, upload_options, files_to_upload, parallel
     )
     if not photo_uploaded_ids:
-        raise click.ClickException("No files were succesfully uploaded. Abort!")
+        logger.error("No files were succesfully uploaded. Abort!")
+        return
 
     _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
     if upload_options.is_public:
@@ -265,7 +268,7 @@ def complete(
     if is_archive:
         _copy_to_uploaded(folder)
 
-    print("End!")
+    logger.info("End!")
 
 
 @upload.command("archive")
@@ -293,7 +296,7 @@ def finish_started(folder, last_photos_num, parallel, is_archive, **kwargs):
 
     photo_uploaded_ids, _ = _get_uploaded_photos_indirect(flickr, last_photos_num, None)
 
-    print(f"{len(photo_uploaded_ids)} photos will be processed.")
+    logger.info(f"{len(photo_uploaded_ids)} photos will be processed.")
 
     _set_date_posted(flickr, now_ts, photo_uploaded_ids, QUICK_CONCURRENCY)
     if upload_options.is_public:
@@ -303,22 +306,22 @@ def finish_started(folder, last_photos_num, parallel, is_archive, **kwargs):
     if is_archive:
         _copy_to_uploaded(folder)
 
-    print("End!")
+    logger.info("End!")
 
 
 def _copy_to_uploaded(folder):
     if os.path.basename(folder) == ZOOM_DIR:
-        print(f"Source folder is {ZOOM_DIR}. Nothing to do.")
+        logger.info(f"Source folder is {ZOOM_DIR}. Nothing to do.")
         return
 
     to_dir = os.path.join(BASE_PHOTO_DIR, UPLOADED_DIR)
     if not os.path.exists(to_dir) or not os.path.isdir(to_dir):
-        print(f"Path {to_dir} doesn't exist or is not a dir. Abort archiving!")
+        logger.info(f"Path {to_dir} doesn't exist or is not a dir. Abort archiving!")
 
     # assume is 2012313-.../xs20 =>
     relpath = os.path.relpath(folder, BASE_PHOTO_DIR)
     if len(Path(relpath).parts) != 2:
-        print(f"Path {relpath} doesn't fit pattern. Abort archiving!")
+        logger.info(f"Path {relpath} doesn't fit pattern. Abort archiving!")
         return
 
     # one level up ie the dir with 20250123_....
@@ -330,15 +333,15 @@ def _copy_to_uploaded(folder):
         # Move zoom photos into tz95 directory (if any)
         move_zoom_photos(super_folder, folder)
 
-        print(f"Archiving '{super_folder}' to '{to_dir}' ...")
+        logger.info(f"Archiving '{super_folder}' to '{to_dir}' ...")
         shutil.move(super_folder, to_dir)
-        print("Successfully archived!")
+        logger.info("Successfully archived!")
     except Exception as e:
         logger.error(f"Error archiving '{super_folder}' to '{to_dir}': {e}")
 
 
 def move_zoom_photos(super_folder, folder):
-    print(f"Moving zoom photos to '{ZOOM_DIR}' ...")
+    logger.info(f"Moving zoom photos to '{ZOOM_DIR}' ...")
     has_moved = False
     zoom_dir = os.path.join(super_folder, ZOOM_DIR)
     for item_name in os.listdir(folder):
@@ -348,9 +351,9 @@ def move_zoom_photos(super_folder, folder):
             dest_item_path = os.path.join(zoom_dir, item_name)
             shutil.move(source_item_path, dest_item_path)
     if has_moved:
-        print("Sucessfully moved")
+        logger.info("Sucessfully moved")
     else:
-        print("Nothing to move")
+        logger.warning("Nothing to move")
     return has_moved
 
 
@@ -390,7 +393,7 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
         )
 
     num_checks = 0
-    print("Checking ticket statuses...")
+    logger.info("Checking ticket statuses...")
     while True:
         tickets_to_check = [
             ticket_id
@@ -451,7 +454,7 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
     ]
     if invalid_photos:
         not_all_photos_uploaded = True
-        print(
+        logger.info(
             f"{len(invalid_photos)} files not uploaded to Flickr : "
             f"{','.join(invalid_photos)}"
         )
@@ -464,7 +467,7 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
         ]
         if incomplete_photos:
             photo_filenames = [os.path.basename(s.filepath) for s in incomplete_photos]
-            print(
+            logger.info(
                 f"{len(incomplete_photos)} files marked as not complete (but not "
                 "invalid) by Flickr but probably uploaded : "
                 f"{','.join(photo_filenames)}"
@@ -490,7 +493,7 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
         raise UploadError(msg)
 
     if photo_uploaded_ids:
-        print(f"{len(photo_uploaded_ids)} files uploaded")
+        logger.info(f"{len(photo_uploaded_ids)} files uploaded")
 
     return photo_uploaded_ids
 
@@ -515,7 +518,7 @@ def _get_uploaded_photos_indirect(
 
     if len(photos_uploaded) < number:
         # some photos not uploaded correctly ?
-        print("Some photos were not uploaded correctly")
+        logger.warning("Some photos were not uploaded correctly")
         # TODO  what to do in this case ? some were indeed not completed (not a bug):
         # never actually seen but possible. Deal only with the ones marked complete in
         # caller? here : deal with just them in caller
@@ -532,20 +535,20 @@ def _get_uploaded_photos_indirect(
 
 def _print_album_options(flickr, upload_options):
     if upload_options.is_create_album:
-        print(f"Will create album '{upload_options.album_name}'")
+        logger.info(f"Will create album '{upload_options.album_name}'")
     elif upload_options.album_id:
         try:
             resp = flickr.photosets.getInfo(photoset_id=upload_options.album_id)
             album_name = Addict(resp).photoset.title._content
-            print(f"Will add to album {upload_options.album_id} ('{album_name}')")
+            logger.info(f"Will add to album {upload_options.album_id} ('{album_name}')")
         except Exception:
-            print(f"Will add to album {upload_options.album_id} (name not found)")
+            logger.info(f"Will add to album {upload_options.album_id} (name not found)")
     else:
-        print("Not adding to album")
+        logger.info("Not adding to album")
 
 
 def _set_public(flickr, now_ts, photos_uploaded, parallel):
-    print("Setting photos to public...")
+    logger.info("Setting photos to public...")
 
     progress_bar = tqdm(
         desc="Setting public...", total=len(photos_uploaded), ncols=NCOLS
@@ -586,7 +589,7 @@ def _set_public(flickr, now_ts, photos_uploaded, parallel):
 
 def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
     # so the photos appear in order in the photostream
-    print("Resetting upload dates...")
+    logger.info("Resetting upload dates...")
 
     progress_bar = tqdm(
         desc="Resetting dates...", total=len(photos_uploaded), ncols=NCOLS
@@ -629,12 +632,12 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
     primary_photo_id = None
     if upload_options.is_create_album and not album_id:
         primary_photo_id = photo_uploaded_ids[0]
-        print(f"Creating album with primary photo {primary_photo_id} ...")
+        logger.info(f"Creating album with primary photo {primary_photo_id} ...")
         album_id = create_album(flickr, upload_options, primary_photo_id)
-        print(f"Album created with id {album_id}")
+        logger.info(f"Album created with id {album_id}")
 
     if album_id:
-        print(f"Adding photos to album {album_id}...")
+        logger.info(f"Adding photos to album {album_id}...")
 
         to_add_photo_ids = list(
             filter(lambda x: x != primary_photo_id, photo_uploaded_ids)
@@ -664,7 +667,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
 
         progress_bar.close()
 
-        print("Reordering album...")
+        logger.info("Reordering album...")
         # get everything in the album and reorder it: tried with only passing the new
         # uploads but weird result
         album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
@@ -693,12 +696,12 @@ def diff(folder, filter_label, is_yes, **kwargs):
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
-    print("Getting local set of photos ...")
+    logger.info("Getting local set of photos ...")
     files_set = filtered(folder, filter_label)
     file_index_by_did = index_by_did(files_set)
 
     # for now : only album
-    print(f"Get flickr images in {upload_options.album_id} ...")
+    logger.info(f"Get flickr images in {upload_options.album_id} ...")
     images = get_photos(flickr, upload_options.album_id)
 
     flickr_index_by_did = {}
@@ -725,14 +728,14 @@ def diff(folder, filter_label, is_yes, **kwargs):
     flickr_did_set = set(flickr_index_by_did.keys())
     dids_to_upload = local_did_set - flickr_did_set
     if not dids_to_upload:
-        print("Nothing to upload")
+        logger.warning("Nothing to upload")
         return
 
-    print(f"{len(dids_to_upload)} files to upload")
+    logger.info(f"{len(dids_to_upload)} files to upload")
 
     if not is_yes:
         if not click.confirm("The images will be uploaded. Confirm?"):
-            print("Aborted by user")
+            logger.warning("Aborted by user")
             exit(1)
 
     files_to_upload = [file_index_by_did[did] for did in dids_to_upload]
@@ -933,7 +936,7 @@ def _prepare_upload_options(flickr, upload_options):
 
     # case album_name and not is_create_album OK even though no effect
     if not upload_options.is_create_album and upload_options.album_name:
-        print("Warning: Album name by itself has no effect. Forgotten Create Album?")
+        logger.warning("Album name by itself has no effect. Forgotten Create Album?")
 
     if upload_options.is_create_album and upload_options.album_name:
         _check_reuse_existing_album(flickr, upload_options)
@@ -964,7 +967,7 @@ def _check_reuse_existing_album(flickr, upload_options):
         title_attr = photoset.get("title")
         title = title_attr.get("_content")
         if title == upload_options.album_name:
-            print(
+            logger.warning(
                 f"Album '{title}' already exists with id {photoset.id}. Will reuse it."
             )
             upload_options.album_id = photoset.id

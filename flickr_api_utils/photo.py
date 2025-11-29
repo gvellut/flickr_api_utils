@@ -1,9 +1,9 @@
 from datetime import datetime
 from fnmatch import fnmatch
+import logging
 import os
 import re
 import shutil
-import traceback
 
 from addict import Dict as Addict
 import click
@@ -13,6 +13,8 @@ import requests
 from .api_auth import auth_flickr
 from .flickr_utils import get_photos, get_photostream_photos
 from .url_utils import extract_album_id, extract_photo_id
+
+logger = logging.getLogger(__name__)
 
 
 @click.group("photo")
@@ -75,14 +77,13 @@ def download(album, output, start_id, end_id):
                 shutil.move(old_path, new_path)
             else:
                 url = image.url_o
-                click.echo(f"Downloading {url}...")
+                logger.info(f"Downloading {url}...")
                 resp = requests.get(url)
                 resp.raise_for_status()
                 with open(new_path, "wb") as f:
                     f.write(resp.content)
         except Exception:
-            click.echo("An error occurred", err=True)
-            traceback.print_exc()
+            logger.exception("An error occurred")
             continue
 
         # Include photo with end_id in processing
@@ -145,15 +146,17 @@ def replace(album, folder, pattern):
                 dt_original = datetime.strftime(dt_original, dt_format_out)
                 photo_time_index[dt_original] = file_path
             except Exception:
-                click.echo(f"Error reading EXIF from {file_path}", err=True)
+                logger.error(f"Error reading EXIF from {file_path}")
                 continue
 
     for date_taken, file_path in photo_time_index.items():
         if date_taken not in flickr_time_index:
-            click.echo(f"Photo {file_path} with date {date_taken} not found on Flickr!")
+            logger.info(
+                f"Photo {file_path} with date {date_taken} not found on Flickr!"
+            )
             continue
         flickr_photo = flickr_time_index[date_taken]
-        click.echo(
+        logger.info(
             f"Replace {make_flickr_photo_url(flickr_photo, user.id)} with "
             f"{file_path}..."
         )
@@ -161,7 +164,7 @@ def replace(album, folder, pattern):
         # not parsed as JSON => bytes
         result = result.decode("utf-8", "ignore")
         if 'stat="ok"' not in result:
-            click.echo(f"Error uploading: {result}", err=True)
+            raise click.ClickException(f"Error replacing photo: {result}")
 
 
 @photo.command("list-by-date")
@@ -189,7 +192,7 @@ def list_by_date(date, limit):
         )
     )
 
-    click.echo(f"Searching {date}...")
+    logger.info(f"Searching {date}...")
 
     for photo in search_result.photos.photo:
         photo = Addict(flickr.photos.getInfo(photo_id=photo.id)).photo
@@ -197,7 +200,7 @@ def list_by_date(date, limit):
         owner = photo.owner.nsid
         id_ = photo.id
         url = f"https://flickr.com/photos/{owner}/{id_}"
-        click.echo(f"{url} {title}")
+        logger.info(f"{url} {title}")
 
 
 SORT_PARAMS = [
@@ -318,7 +321,7 @@ def find_replace(
         # Album mode - use album order
         album_id = extract_album_id(album)
         images = get_photos(flickr, album_id)
-        click.echo(f"Processing photos in album {album_id}...")
+        logger.info(f"Processing photos in album {album_id}...")
 
         processed_count = 0
         is_process = False
@@ -348,7 +351,7 @@ def find_replace(
                 "For photostream mode, both --start-id and --end-id are required"
             )
 
-        click.echo(f"Processing photos in photostream (sort: {sort})...")
+        logger.info(f"Processing photos in photostream (sort: {sort})...")
         images = get_photostream_photos(
             flickr, start_id, end_id, sort=sort, limit=limit
         )
@@ -361,14 +364,14 @@ def find_replace(
 
 def _process_photo(flickr, image, find_title, replace_title, remove_tags, add_tags):
     """Process a single photo with title replacement and/or tag operations."""
-    click.echo(f"Processing {image.id} [{image.title}] ...")
+    logger.info(f"Processing {image.id} [{image.title}] ...")
 
     # Title replacement
     if find_title and replace_title:
         title, n = re.subn(find_title, replace_title, image.title)
         if n:
             flickr.photos.setMeta(photo_id=image.id, title=title)
-            click.echo(f"  Updated title: {title}")
+            logger.info(f"  Updated title: {title}")
 
     # Tag operations (need to get full photo info for tags)
     if remove_tags or add_tags:
@@ -380,13 +383,13 @@ def _process_photo(flickr, image, find_title, replace_title, remove_tags, add_ta
                 if tag["raw"] in remove_tags:
                     tag_id_to_remove = tag.id
                     flickr.photos.removeTag(tag_id=tag_id_to_remove)
-                    click.echo(f"  Removed tag: {tag['raw']}")
+                    logger.info(f"  Removed tag: {tag['raw']}")
 
         # Add tags
         if add_tags:
             # add_tags already transformed into correct arg shape for API
             flickr.photos.addTags(photo_id=image.id, tags=add_tags)
-            click.echo(f"  Added tags: {add_tags}")
+            logger.info(f"  Added tags: {add_tags}")
 
 
 @photo.command("correct-date")
@@ -455,6 +458,6 @@ def correct_date(start_id, end_id, min_date, margin_minutes):
         # unixtime
         ts = int(date_posted.timestamp())
         flickr.photos.setDates(photo_id=photo.id, date_posted=ts)
-        click.echo(f"Posted {photo.id} {date_posted}")
+        logger.info(f"Posted {photo.id} {date_posted}")
 
         fake_date += timedelta(minutes=1)

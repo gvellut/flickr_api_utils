@@ -1,6 +1,7 @@
 from collections import defaultdict, namedtuple
 from datetime import UTC, datetime
 import json
+import logging
 from operator import attrgetter
 import os.path
 
@@ -11,6 +12,8 @@ import dateutil.parser
 from .api_auth import auth_flickr
 from .flickr_utils import get_photos
 from .url_utils import extract_album_id, extract_photo_id
+
+logger = logging.getLogger(__name__)
 
 
 @click.group("album")
@@ -66,7 +69,7 @@ def list_albums(sort_by):
         albums_with_cd.sort(key=lambda x: x[0])
 
     for title, date, album_id in albums_with_cd:
-        click.echo(f"{date.strftime('%Y-%m-%d')} {album_id:20s} {title}")
+        logger.info(f"{date.strftime('%Y-%m-%d')} {album_id:20s} {title}")
 
 
 @album.command("delete")
@@ -82,11 +85,11 @@ def delete_album(album, yes):
 
     if not yes:
         if not click.confirm(f"Delete album {album_id}?"):
-            click.echo("Aborted")
+            logger.warning("Aborted")
             return
 
     flickr.photosets.delete(photoset_id=album_id)
-    click.echo(f"Deleted album {album_id}")
+    logger.info(f"Deleted album {album_id}")
 
 
 @album.command("move-to-top")
@@ -118,7 +121,7 @@ def move_to_top(album, save_original):
     q_album_ids = ",".join(album_ids)
 
     flickr.photosets.orderSets(photoset_ids=q_album_ids)
-    click.echo(f"Moved album {album_id} to top")
+    logger.info(f"Moved album {album_id} to top")
 
 
 @album.command("reorder")
@@ -161,7 +164,7 @@ def reorder_albums(start_album, save_original):
     album_dates = {}
 
     for album_data in albums:
-        click.echo(f"{album_data.title._content} {album_data.id}")
+        logger.info(f"{album_data.title._content} {album_data.id}")
         album_id = album_data.id
         photos = all_pages(
             "photoset",
@@ -189,10 +192,10 @@ def reorder_albums(start_album, save_original):
 
     ordered_album_ids = partial_ordered_album_ids + list(map(attrgetter("id"), as_is))
 
-    click.echo("Reordering albums...")
+    logger.info("Reordering albums...")
     q_album_ids = ",".join(ordered_album_ids)
     flickr.photosets.orderSets(photoset_ids=q_album_ids)
-    click.echo("Albums reordered")
+    logger.info("Albums reordered")
 
 
 @album.command("reorder-photos")
@@ -211,7 +214,7 @@ def reorder_photos(album):
 
     q_photo_ids = ",".join(photo_ids)
     flickr.photosets.reorderPhotos(photoset_id=album_id, photo_ids=q_photo_ids)
-    click.echo(f"Reordered photos in album {album_id}")
+    logger.info(f"Reordered photos in album {album_id}")
 
 
 @album.command("remove-photos")
@@ -260,16 +263,16 @@ def remove_photos(album, start_id, end_id, yes):
         photo_ids.append(photo.id)
 
     if not photo_ids:
-        click.echo("No photos to remove")
+        logger.warning("No photos to remove")
         return
 
     if not yes:
         if not click.confirm(f"Remove {len(photo_ids)} photos from album {album_id}?"):
-            click.echo("Aborted")
+            logger.warning("Aborted")
             return
 
     flickr.photosets.removePhotos(photoset_id=album_id, photo_ids=",".join(photo_ids))
-    click.echo(f"Removed {len(photo_ids)} photos from album {album_id}")
+    logger.info(f"Removed {len(photo_ids)} photos from album {album_id}")
 
 
 @album.command("info")
@@ -370,4 +373,4 @@ def info(start_album, sort_by, order, save_file, load_from_file, show_attrs):
         for attr_f in show_attrs_f:
             value = str(attr_f(album_data))
             album_str.append(value)
-        click.echo("\t".join(album_str))
+        logger.info("\t".join(album_str))
