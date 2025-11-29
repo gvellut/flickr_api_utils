@@ -17,6 +17,7 @@ import click
 import piexif
 from PIL import ExifTags, Image
 
+from .base import CatchAllExceptionsCommand
 from .upload import ZOOM_DIR, ZOOM_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def local():
     pass
 
 
-@local.command("crop43")
+@local.command("crop43", cls=CatchAllExceptionsCommand)
 @click.argument(
     "input_folder", type=click.Path(exists=True, file_okay=False, dir_okay=True)
 )
@@ -93,7 +94,7 @@ def crop_image(img_path, output_path):
             img_cropped.save(output_path, "JPEG", subsampling=0, quality=95)
 
 
-@local.command("check-copied")
+@local.command("check-copied", cls=CatchAllExceptionsCommand)
 @click.option(
     "--source",
     "source_folders",
@@ -242,7 +243,7 @@ def compute_zoom_filters(source_path):
     return filters
 
 
-@local.command("copy-zoom-to-std")
+@local.command("copy-zoom-to-std", cls=CatchAllExceptionsCommand)
 @click.argument("folder_path")
 def copy_zoom_to_std(folder_path):
     """Copy photos from zoom camera folder to standard camera folder.
@@ -518,7 +519,7 @@ def copy_to_folder(volume: PhotoVolume, folder_base, f_date):
                 shutil.copy2(file_path, output_folder)
 
 
-@local.command("copy-sd")
+@local.command("copy-sd", cls=CatchAllExceptionsCommand)
 @click.option(
     "--name",
     required=True,
@@ -585,7 +586,7 @@ def copy_sd(name, date_spec, is_eject):
         logger.exception(f"Error ejecting {volume[0]}")
 
 
-@local.command("copy-all")
+@local.command("copy-all", cls=CatchAllExceptionsCommand)
 @click.option(
     "--source",
     required=True,
@@ -620,7 +621,7 @@ def copy_all(source, dest, pattern):
     logger.info(f"Total files copied: {copied}")
 
 
-@local.command("list-not-uploaded")
+@local.command("list-not-uploaded", cls=CatchAllExceptionsCommand)
 @click.option(
     "--folder",
     required=True,
@@ -667,7 +668,7 @@ def find_library(name):
 ctypes.util.find_library = find_library
 
 
-@local.command("find-replace-local")
+@local.command("find-replace-local", cls=CatchAllExceptionsCommand)
 @click.option(
     "--folder",
     required=True,

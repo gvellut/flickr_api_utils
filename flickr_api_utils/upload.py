@@ -19,6 +19,7 @@ import piexif
 from tqdm import tqdm
 
 from .api_auth import auth_flickr
+from .base import CatchAllExceptionsCommand
 from .flickr_utils import get_photos, get_photostream_photos
 from .url_utils import extract_album_id
 from .xmp_utils import (
@@ -192,7 +193,7 @@ def upload():
     pass
 
 
-@upload.command("standard")
+@upload.command("standard", cls=CatchAllExceptionsCommand)
 @folder_option
 @click.option("--label", "filter_label", default="Accepted", help="Label to filter on")
 @public_option
@@ -271,13 +272,13 @@ def complete(
     logger.info("End!")
 
 
-@upload.command("archive")
+@upload.command("archive", cls=CatchAllExceptionsCommand)
 @folder_option
 def archive(folder):
     _copy_to_uploaded(folder)
 
 
-@upload.command("finish")
+@upload.command("finish", cls=CatchAllExceptionsCommand)
 @folder_option
 @last_photos_num_option
 @public_option
@@ -680,7 +681,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
 
 # to upload photos that are missing
 # for now : only album
-@upload.command("diff")
+@upload.command("diff", cls=CatchAllExceptionsCommand)
 @folder_option
 @click.option("--label", "filter_label", default="Uploaded", help="Label to filter on")
 @click.option(

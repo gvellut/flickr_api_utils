@@ -11,6 +11,7 @@ import piexif
 import requests
 
 from .api_auth import auth_flickr
+from .base import CatchAllExceptionsCommand
 from .flickr_utils import get_photos, get_photostream_photos
 from .url_utils import extract_album_id, extract_photo_id
 
@@ -23,7 +24,7 @@ def photo():
     pass
 
 
-@photo.command()
+@photo.command(cls=CatchAllExceptionsCommand)
 @click.option(
     "--album",
     required=True,
@@ -91,7 +92,7 @@ def download(album, output, start_id, end_id):
             break
 
 
-@photo.command()
+@photo.command(cls=CatchAllExceptionsCommand)
 @click.option(
     "--album",
     required=True,
@@ -167,7 +168,7 @@ def replace(album, folder, pattern):
             raise click.ClickException(f"Error replacing photo: {result}")
 
 
-@photo.command("list-by-date")
+@photo.command("list-by-date", cls=CatchAllExceptionsCommand)
 @click.option(
     "--date",
     required=True,
@@ -211,7 +212,7 @@ SORT_PARAMS = [
 ]
 
 
-@photo.command("find-replace")
+@photo.command("find-replace", cls=CatchAllExceptionsCommand)
 @click.option(
     "--album",
     help="Album ID or URL to process (if not provided, uses photostream)",
@@ -392,7 +393,7 @@ def _process_photo(flickr, image, find_title, replace_title, remove_tags, add_ta
             logger.info(f"  Added tags: {add_tags}")
 
 
-@photo.command("correct-date")
+@photo.command("correct-date", cls=CatchAllExceptionsCommand)
 @click.option(
     "--start-id",
     required=True,

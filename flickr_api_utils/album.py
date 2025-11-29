@@ -10,6 +10,7 @@ import click
 import dateutil.parser
 
 from .api_auth import auth_flickr
+from .base import CatchAllExceptionsCommand
 from .flickr_utils import get_photos
 from .url_utils import extract_album_id, extract_photo_id
 
@@ -46,7 +47,7 @@ def get_albums():
     )
 
 
-@album.command("list")
+@album.command("list", cls=CatchAllExceptionsCommand)
 @click.option(
     "--sort-by",
     type=click.Choice(["date", "title"]),
@@ -72,7 +73,7 @@ def list_albums(sort_by):
         logger.info(f"{date.strftime('%Y-%m-%d')} {album_id:20s} {title}")
 
 
-@album.command("delete")
+@album.command("delete", cls=CatchAllExceptionsCommand)
 @click.argument("album")
 @click.option("--yes", is_flag=True, help="Skip confirmation")
 def delete_album(album, yes):
@@ -92,7 +93,7 @@ def delete_album(album, yes):
     logger.info(f"Deleted album {album_id}")
 
 
-@album.command("move-to-top")
+@album.command("move-to-top", cls=CatchAllExceptionsCommand)
 @click.argument("album")
 @click.option(
     "--save-original",
@@ -124,14 +125,14 @@ def move_to_top(album, save_original):
     logger.info(f"Moved album {album_id} to top")
 
 
-@album.command("reorder")
+@album.command("reorder", cls=CatchAllExceptionsCommand)
 @click.option(
     "--start-album",
     help="Album ID or URL to start reordering from (inclusive)",
 )
 @click.option(
     "--save-original",
-    default="reorder_sets_original_sort.txt",
+    default="original_set_to_top.txt",
     help="File to save original order to",
 )
 def reorder_albums(start_album, save_original):
@@ -198,7 +199,7 @@ def reorder_albums(start_album, save_original):
     logger.info("Albums reordered")
 
 
-@album.command("reorder-photos")
+@album.command("reorder-photos", cls=CatchAllExceptionsCommand)
 @click.argument("album")
 def reorder_photos(album):
     """Reorder photos in an album by date taken.
@@ -217,7 +218,7 @@ def reorder_photos(album):
     logger.info(f"Reordered photos in album {album_id}")
 
 
-@album.command("remove-photos")
+@album.command("remove-photos", cls=CatchAllExceptionsCommand)
 @click.argument("album")
 @click.option(
     "--start-id",
@@ -275,7 +276,7 @@ def remove_photos(album, start_id, end_id, yes):
     logger.info(f"Removed {len(photo_ids)} photos from album {album_id}")
 
 
-@album.command("info")
+@album.command("info", cls=CatchAllExceptionsCommand)
 @click.option(
     "--start-album",
     help="Album ID or URL to start from (inclusive)",
