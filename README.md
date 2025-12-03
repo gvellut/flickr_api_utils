@@ -43,7 +43,6 @@ flickr-api-utils --help
 - **album**: Album management (list, create, delete, reorder)
 - **upload**: Upload photos to Flickr (complete workflow, resume, diff)
 - **local**: Local file operations (crop images, copy from SD card)
-- **blog**: Blog utilities (generate markdown from Flickr photos)
 
 
 ### Examples
