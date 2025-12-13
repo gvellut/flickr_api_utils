@@ -10,7 +10,6 @@ import re
 import shlex
 import shutil
 import subprocess
-import traceback
 
 import attr
 import click

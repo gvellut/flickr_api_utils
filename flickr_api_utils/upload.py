@@ -212,6 +212,8 @@ def complete(
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
+    folder = _norm_folder(folder)
+
     logger.info("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
     if not files_to_upload:
@@ -275,6 +277,7 @@ def complete(
 @upload.command("archive", cls=CatchAllExceptionsCommand)
 @folder_option
 def archive(folder):
+    folder = _norm_folder(folder)
     _copy_to_uploaded(folder)
 
 
@@ -305,6 +308,7 @@ def finish_started(folder, last_photos_num, parallel, is_archive, **kwargs):
     _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
 
     if is_archive:
+        folder = _norm_folder(folder)
         _copy_to_uploaded(folder)
 
     logger.info("End!")
@@ -496,6 +500,17 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
         logger.info(f"{len(photo_uploaded_ids)} files uploaded")
 
     return photo_uploaded_ids
+
+
+def _norm_folder(folder):
+    # in case the path to image was indicated
+    if os.path.isfile(folder) and os.path.splitext(folder)[-1].lower() in (
+        ".jpg",
+        ".jpeg",
+    ):
+        folder = os.path.dirname(folder)
+
+    return folder
 
 
 def _get_uploaded_photos_indirect(
@@ -696,6 +711,8 @@ def diff(folder, filter_label, is_yes, **kwargs):
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
+    folder = _norm_folder(folder)
+
     logger.info("Getting local set of photos ...")
     files_set = filtered(folder, filter_label)
     file_index_by_did = index_by_did(files_set)
@@ -815,13 +832,6 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
 
 
 def filtered(folder, filter_label):
-    # in case the path to image was indicated
-    if os.path.isfile(folder) and os.path.splitext(folder)[-1].lower() in (
-        ".jpg",
-        ".jpeg",
-    ):
-        folder = os.path.dirname(folder)
-
     files_to_upload = []
     for file_name in os.listdir(folder):
         if not (
