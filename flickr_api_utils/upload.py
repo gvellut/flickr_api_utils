@@ -110,6 +110,7 @@ folder_option = click.option(
     required=True,
     help="Folder to upload",
     envvar="FAU_FOLDER",
+    callback=lambda ctx, param, value: _norm_folder(value),
 )
 
 album_option = click.option(
@@ -212,8 +213,6 @@ def complete(
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
 
-    folder = _norm_folder(folder)
-
     logger.info("Getting files to upload ...")
     files_to_upload = filtered(folder, filter_label)
     if not files_to_upload:
@@ -277,7 +276,6 @@ def complete(
 @upload.command("archive", cls=CatchAllExceptionsCommand)
 @folder_option
 def archive(folder):
-    folder = _norm_folder(folder)
     _copy_to_uploaded(folder)
 
 
@@ -308,7 +306,6 @@ def finish_started(folder, last_photos_num, parallel, is_archive, **kwargs):
     _add_to_album(flickr, upload_options, photo_uploaded_ids, QUICK_CONCURRENCY)
 
     if is_archive:
-        folder = _norm_folder(folder)
         _copy_to_uploaded(folder)
 
     logger.info("End!")
@@ -710,8 +707,6 @@ def diff(folder, filter_label, is_yes, **kwargs):
     flickr = auth_flickr()
 
     upload_options = _prepare_upload_options(flickr, UploadOptions(**kwargs))
-
-    folder = _norm_folder(folder)
 
     logger.info("Getting local set of photos ...")
     files_set = filtered(folder, filter_label)
