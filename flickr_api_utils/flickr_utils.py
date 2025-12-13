@@ -78,16 +78,20 @@ def get_photostream_photos(
     # avoid going to 2005 in both sort order (most likely a mistake)
     if "sort" in kwargs and kwargs["sort"].endswith("-asc"):
         if not date_s:
-            # in this case, you should input the first photo
+            # in this case, you should input the first photo explicitly
+            # TODO some issues with Flickr stream : old photos do not seem in order
+            # precision issue ?
             raise ValueError("Start date empty: would start from 2005 (sort=asc)")
     else:
         # desc
-        if not date_e and not limit:
+        if not date_s and not limit:
             raise ValueError(
-                "End date empty and would go to 2005. Probably a mistake (sort=desc)"
+                "Start date empty and no limit: Would go to 2005 (sort=desc)"
             )
         # for flickr API parameters : it should be ordered
         date_e, date_s = date_s, date_e
+
+    # if date end and date start reversed by mistake : flickr API would return 0 photo
 
     if date_s:
         kwargs.update(min_upload_date=date_s)
