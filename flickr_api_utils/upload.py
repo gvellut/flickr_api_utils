@@ -316,10 +316,11 @@ def _copy_to_uploaded(folder):
         return
 
     to_dir = os.path.join(BASE_PHOTO_DIR, UPLOADED_DIR)
+    # assumes already exists
     if not os.path.exists(to_dir) or not os.path.isdir(to_dir):
         logger.info(f"Path {to_dir} doesn't exist or is not a dir. Abort archiving!")
 
-    # assume is 2012313-.../xs20 =>
+    # assume is 2012313-.../xs20 => so 2 parts above base_photo_dir
     relpath = os.path.relpath(folder, BASE_PHOTO_DIR)
     if len(Path(relpath).parts) != 2:
         logger.info(f"Path {relpath} doesn't fit pattern. Abort archiving!")
@@ -327,8 +328,6 @@ def _copy_to_uploaded(folder):
 
     # one level up ie the dir with 20250123_....
     super_folder = os.path.abspath(os.path.join(folder, ".."))
-
-    os.makedirs(to_dir, exist_ok=True)
 
     try:
         # Move zoom photos into tz95 directory (if any)
@@ -816,6 +815,13 @@ def upload_to_flickr(flickr, upload_options, order, filepath, xmp_root, timeout=
 
 
 def filtered(folder, filter_label):
+    # in case the path to image was indicated
+    if os.path.isfile(folder) and os.path.splitext(folder)[-1].lower() in (
+        ".jpg",
+        ".jpeg",
+    ):
+        folder = os.path.dirname(folder)
+
     files_to_upload = []
     for file_name in os.listdir(folder):
         if not (
