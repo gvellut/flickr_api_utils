@@ -53,7 +53,12 @@ def all_pages_generator(page_elem, iter_elem, func, *args, **kwargs):
 # start, end : depend on sort order which is later : desc : e < s; asc: s < e
 # in argument
 def get_photostream_photos(
-    flickr, start_photo_id=None, end_photo_id=None, limit=1000, **kwargs
+    flickr,
+    start_photo_id=None,
+    end_photo_id=None,
+    limit=1000,
+    override_safeguard=False,  # safeguard to prevent mistakes when no d start indicated
+    **kwargs,
 ):
     date_s = None
     if start_photo_id:
@@ -76,17 +81,22 @@ def get_photostream_photos(
         raise ValueError("No dates and no limit: All photos would be returned.")
 
     # avoid going to 2005 in both sort order (most likely a mistake)
-    if "sort" in kwargs and kwargs["sort"].endswith("-asc"):
-        if not date_s:
+    is_asc = "sort" in kwargs and kwargs["sort"].endswith("-asc")
+    if is_asc:
+        if not override_safeguard and not date_s:
             # in this case, you should input the first photo explicitly
             # TODO some issues with Flickr stream : old photos do not seem in order
             # precision issue ?
             raise ValueError("Start date empty: would start from 2005 (sort=asc)")
     else:
         # desc
-        if not date_s and not limit:
+        # date end / date start in tool : depends on the chosen order :
+        # desc => date start is after date (reverse from real timeline)
+        # => follows flickr stream
+        # TODO keep same as Flickr API ? + rename start / end to min_date max_date
+        if not override_safeguard and not date_e and not limit:
             raise ValueError(
-                "Start date empty and no limit: Would go to 2005 (sort=desc)"
+                "End date empty and no limit: Would go to 2005 (sort=desc)"
             )
         # for flickr API parameters : it should be ordered
         date_e, date_s = date_s, date_e
