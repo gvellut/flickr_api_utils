@@ -17,7 +17,7 @@ import piexif
 from PIL import ExifTags, Image
 
 from .base import CatchAllExceptionsCommand
-from .upload import ZOOM_DIR, ZOOM_PREFIX
+from .upload import UPLOADED_DIR, ZOOM_DIR, ZOOM_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -407,7 +407,14 @@ def to_dates(date_s, volume: PhotoVolume):
         date_s = date_s[len(PREFIX_SINCE) :]
         if date_s == "last":
             folder_for_sd = MEDIA_FOLDER_MAPPING[volume.name]
-            dirs = dirs_with_date(output_parent_folder, subfolder=folder_for_sd)
+            dirs_workspace = dirs_with_date(
+                output_parent_folder, subfolder=folder_for_sd
+            )
+            dirs_uploaded = dirs_with_date(
+                os.path.join(output_parent_folder, UPLOADED_DIR),
+                subfolder=folder_for_sd,
+            )
+            dirs = sorted(dirs_workspace + dirs_uploaded, reverse=True)
             if dirs:
                 # replace with last folder in order
                 date_s = dirs[0]
