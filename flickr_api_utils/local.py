@@ -177,7 +177,7 @@ def check_copied(
             source_folder = source_children_origin[name]
             source_path = os.path.join(source_folder, name)
             command = build_rsync_command(source_path, target_folder)
-            logger.info(command)
+            print(command)
         logger.info("\n\n")
 
 
