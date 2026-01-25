@@ -237,12 +237,20 @@ SORT_PARAMS = [
     ),
 )
 @click.option(
-    "--remove-tags",
+    "--remove-tag",
+    "remove_tags",
     help="Tags to remove from photos",
     multiple=True,
 )
 @click.option(
-    "--add-tags",
+    "--replace-tag",
+    "replace_tags",
+    help="Tags to replace from photos (new tags only added photos with those tags)",
+    multiple=True,
+)
+@click.option(
+    "--add-tag",
+    "add_tags",
     help="Tags to add to photos",
     multiple=True,
 )
@@ -267,6 +275,7 @@ def find_replace(
     replace_title,
     remove_tags,
     add_tags,
+    replace_tags,
     sort,
     limit,
 ):
@@ -300,6 +309,11 @@ def find_replace(
         raise click.ClickException(
             "--find-title is required when --replace-title is specified"
         )
+
+    is_replace = False
+    if replace_tags:
+        is_replace = True
+        remove_tags = replace_tags
 
     if remove_tags:
         # Flickr does not allow space at start or end of tag : so remove ie probably
@@ -337,7 +351,13 @@ def find_replace(
                 break
 
             _process_photo(
-                flickr, image, find_title, replace_title, remove_tags, add_tags
+                flickr,
+                image,
+                find_title,
+                replace_title,
+                remove_tags,
+                is_replace,
+                add_tags,
             )
             processed_count += 1
 
@@ -359,25 +379,42 @@ def find_replace(
 
         for image in images:
             _process_photo(
-                flickr, image, find_title, replace_title, remove_tags, add_tags
+                flickr,
+                image,
+                find_title,
+                replace_title,
+                remove_tags,
+                is_replace,
+                add_tags,
             )
 
 
-def _process_photo(flickr, image, find_title, replace_title, remove_tags, add_tags):
+def _process_photo(
+    flickr, image, find_title, replace_title, remove_tags, is_replace, add_tags
+):
     """Process a single photo with title replacement and/or tag operations."""
     logger.info(f"Processing {image.id} [{image.title}] ...")
 
     # Title replacement
-    if find_title and replace_title:
-        title, n = re.subn(find_title, replace_title, image.title)
-        if n:
-            flickr.photos.setMeta(photo_id=image.id, title=title)
-            logger.info(f"  Updated title: {title}")
+    if find_title and re.search(find_title, image.title):
+        if replace_title:
+            title, n = re.subn(find_title, replace_title, image.title)
+            if n:
+                flickr.photos.setMeta(photo_id=image.id, title=title)
+                logger.info(f"  Updated title: {title}")
 
-    # Tag operations (need to get full photo info for tags)
+        # if title given : only add/remove tag related to the photos that match
+        _add_remove_tags(flickr, image.id, remove_tags, is_replace, add_tags)
+    else:
+        # add/remove tag of all the photos
+        _add_remove_tags(flickr, image.id, remove_tags, is_replace, add_tags)
+
+
+def _add_remove_tags(flickr, photo_id, remove_tags, is_replace, add_tags):
     if remove_tags or add_tags:
-        info = Addict(flickr.photos.getInfo(photo_id=image.id))
+        info = Addict(flickr.photos.getInfo(photo_id=photo_id))
 
+        has_removed = False
         # Remove tag
         if remove_tags:
             for tag in info.photo.tags.tag:
@@ -385,11 +422,14 @@ def _process_photo(flickr, image, find_title, replace_title, remove_tags, add_ta
                     tag_id_to_remove = tag.id
                     flickr.photos.removeTag(tag_id=tag_id_to_remove)
                     logger.info(f"  Removed tag: {tag['raw']}")
+                    has_removed = True
 
         # Add tags
-        if add_tags:
+        if add_tags and (not is_replace or has_removed):
+            # not is_replace => always add
+            # if is_replace => need has_removed
             # add_tags already transformed into correct arg shape for API
-            flickr.photos.addTags(photo_id=image.id, tags=add_tags)
+            flickr.photos.addTags(photo_id=photo_id, tags=add_tags)
             logger.info(f"  Added tags: {add_tags}")
 
 
