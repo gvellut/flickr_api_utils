@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 from .api_auth import auth_flickr
 from .base import CatchAllExceptionsCommand
-from .flickr_utils import get_photos, get_photostream_photos
+from .flickr_utils import format_tags, get_photos, get_photostream_photos
 from .url_utils import extract_album_id
 from .xmp_utils import (
     NoXMPPacketFound,
@@ -96,12 +96,6 @@ class UploadOptions:
 def is_filtered(xmp_root, filter_label):
     label = get_label(xmp_root)
     return label == filter_label
-
-
-def format_tags(tags):
-    if tags:
-        return '"' + '" "'.join(tags) + '"'
-    return None
 
 
 folder_option = click.option(
@@ -296,7 +290,8 @@ def finish_started(folder, last_photos_num, parallel, is_archive, **kwargs):
 
     now_ts = int(datetime.now().timestamp())
 
-    photo_uploaded_ids, _ = _get_uploaded_photos_indirect(flickr, last_photos_num, None)
+    photos, _ = _get_uploaded_photos_indirect(flickr, last_photos_num, None)
+    photo_uploaded_ids = [s.id for s in photos]
 
     logger.info(f"{len(photo_uploaded_ids)} photos will be processed.")
 
@@ -358,7 +353,9 @@ def move_zoom_photos(super_folder, folder):
     return has_moved
 
 
-def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
+def _upload_photos(
+    flickr: flickrapi.FlickrAPI, now_ts, upload_options, files_to_upload, parallel
+):
     photos_uploaded = []
 
     progress_bar = tqdm(desc="Uploading...", total=len(files_to_upload), ncols=NCOLS)
@@ -473,9 +470,16 @@ def _upload_photos(flickr, now_ts, upload_options, files_to_upload, parallel):
                 "invalid) by Flickr but probably uploaded : "
                 f"{','.join(photo_filenames)}"
             )
-            photo_uploaded_ids, photos_indirect_not_found = (
-                _get_uploaded_photos_indirect(flickr, len(files_to_upload), now_ts)
+            # photos is sorted ASC date taken
+            photos, photos_indirect_not_found = _get_uploaded_photos_indirect(
+                flickr, len(files_to_upload), now_ts
             )
+            if not photos_indirect_not_found:
+                # after checking : photos that were incomplete are all uploaded
+                # but they may be missing tags or lat lon so reupload
+                _reupload_photos_without_tags(flickr, files_to_upload, photos)
+
+            photo_uploaded_ids = [s.id for s in photos]
             not_all_photos_uploaded = photos_indirect_not_found
         else:
             photo_uploaded_ids = [
@@ -510,6 +514,57 @@ def _norm_folder(folder):
     return folder
 
 
+def _reupload_photos_without_tags(
+    flickr: flickrapi.FlickrAPI, files_to_upload, uploaded_photos
+):
+    timeout = 30
+    num_retries = 3
+    # files to upload should correspod to uploaded_photos (verified before launching
+    # this)
+    for i in range(len(files_to_upload)):
+        try:
+            local_photo = files_to_upload[i]
+            flickr_photo = uploaded_photos[i]
+
+            if flickr_photo.tags:
+                continue
+
+            # no tags : for my convention : all photos have tags so it means something
+            # went wrong in the upload
+            # TODO we could check from the xmp if no tag is fine or not ; check the lat
+            # lon so we know if there is some mismatch and missing data
+            # TODO would need to add extract of lat lon from EXIF
+
+            (filepath, xmp_root) = local_photo
+            # we will reset tags explcitly : title was already fine. latlon will be
+            # extracted from the photo
+            tags = get_tags(xmp_root)
+            flickr_tags = format_tags(tags)
+            # no description like the normal upload
+
+            retry(
+                num_retries,
+                partial(
+                    flickr.replace,
+                    filepath,
+                    flickr_photo.id,
+                    format="rest",
+                    timeout=timeout,
+                ),
+            )
+
+            retry(
+                num_retries,
+                partial(
+                    flickr.photos.addTags, photo_id=flickr_photo.id, tags=flickr_tags
+                ),
+            )
+
+        except Exception as e:
+            msg = f"Error replacing {filepath} ({flickr_photo.id}): {e}"
+            logger.error(msg)
+
+
 def _get_uploaded_photos_indirect(
     flickr, number: int, since_time: datetime, margin_s=10
 ):
@@ -524,7 +579,7 @@ def _get_uploaded_photos_indirect(
         limit=number,
         min_upload_date=date_s,
         sort="date-posted-desc",
-        extras="date_taken",
+        extras="date_taken,tags",
     ):
         photos_uploaded.append(photos)
 
@@ -539,10 +594,10 @@ def _get_uploaded_photos_indirect(
     # take the last <number> posted
     # TODO necesasary ? limit is used in get_photostream_photos
     photos_uploaded = photos_uploaded[:number]
+    # sort date taken ASC
     sorted_date_taken = sorted(photos_uploaded, key=lambda x: x.datetaken)
 
-    photo_ids_uploaded = [s.id for s in sorted_date_taken]
-    return photo_ids_uploaded, False
+    return sorted_date_taken, False
 
 
 def _print_album_options(flickr, upload_options):

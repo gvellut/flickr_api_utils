@@ -13,7 +13,7 @@ def generate_random_string(length):
     return result_str
 
 
-def auth_flickr():
+def auth_flickr() -> flickrapi.FlickrAPI:
     with open("api_key.json") as f:
         flickr_key = Addict(json.load(f))
 

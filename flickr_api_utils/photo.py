@@ -12,7 +12,7 @@ import requests
 
 from .api_auth import auth_flickr
 from .base import CatchAllExceptionsCommand
-from .flickr_utils import get_photos, get_photostream_photos
+from .flickr_utils import format_tags, get_photos, get_photostream_photos
 from .url_utils import extract_album_id, extract_photo_id
 
 logger = logging.getLogger(__name__)
@@ -321,9 +321,7 @@ def find_replace(
         remove_tags = set(tag.strip() for tag in remove_tags)
 
     if add_tags:
-        tag_list = [f'"{tag.strip()}"' for tag in add_tags]
-        # space separated for API
-        add_tags = ",".join(tag_list)
+        add_tags = format_tags(add_tags)
 
     # Extract IDs from URLs if needed
     if start_id:

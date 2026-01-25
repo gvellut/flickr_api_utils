@@ -125,3 +125,15 @@ def get_photostream_photos(
             if limit and counter >= limit:
                 logger.info(f"Limit {limit} reached. Stopping")
                 return
+
+
+def format_tags(tags):
+    if tags:
+        # check if there is  a " in the tag values: will not be valid for Flickr
+        if any('"' in tag for tag in tags):
+            raise ValueError("'\"' should not be in a tag")
+
+        tag_list = [f'"{tag.strip()}"' for tag in tags]
+        # space separated for API
+        return " ".join(tag_list)
+    return None
