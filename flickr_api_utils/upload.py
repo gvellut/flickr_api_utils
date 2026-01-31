@@ -517,7 +517,7 @@ def _norm_folder(folder):
 def _reupload_photos_without_tags(
     flickr: flickrapi.FlickrAPI, files_to_upload, uploaded_photos
 ):
-    logging.info("Replacing the incomplete photos (GPS, tags)...")
+    logger.info("Replacing the incomplete photos (GPS, tags)...")
 
     timeout = 30
     num_retries = 3
