@@ -709,43 +709,53 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
     if album_id:
         logger.info(f"Adding photos to album {album_id}...")
 
-        to_add_photo_ids = list(
-            filter(lambda x: x != primary_photo_id, photo_uploaded_ids)
-        )
-        progress_bar = tqdm(
-            desc="Adding to album...", total=len(to_add_photo_ids), ncols=NCOLS
+        _add_to_album_one_by_one(
+            flickr, album_id, photo_uploaded_ids, primary_photo_id, parallel
         )
 
-        def _result_callback(result):
-            progress_bar.update(1)
 
-        def _error_callback(ex):
-            msg = "Error during 'Adding to album': " + str(ex.args[0])
-            progress_bar.write(msg)
+def _add_to_album_one_by_one(
+    flickr, album_id, photo_uploaded_ids, primary_photo_id, parallel
+):
+    to_add_photo_ids = list(filter(lambda x: x != primary_photo_id, photo_uploaded_ids))
+    progress_bar = tqdm(
+        desc="Adding to album...", total=len(to_add_photo_ids), ncols=NCOLS
+    )
 
-        with Pool(parallel) as pool:
-            # already added in create_album
-            for photo_id in to_add_photo_ids:
-                pool.apply_async(
-                    add_to_album,
-                    (flickr, album_id, photo_id),
-                    callback=_result_callback,
-                    error_callback=_error_callback,
-                )
-            pool.close()
-            pool.join()
+    def _result_callback(result):
+        progress_bar.update(1)
 
-        progress_bar.close()
+    def _error_callback(ex):
+        msg = "Error during 'Adding to album': " + str(ex.args[0])
+        progress_bar.write(msg)
 
-        logger.info("Reordering album...")
-        # get everything in the album and reorder it: tried with only passing the new
-        # uploads but weird result
-        album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
-        photos = sorted(album_photos, key=attrgetter("datetaken"))
-        photo_ids = list(map(attrgetter("id"), photos))
+    with Pool(parallel) as pool:
+        # already added in create_album
+        for photo_id in to_add_photo_ids:
+            pool.apply_async(
+                add_to_album,
+                (flickr, album_id, photo_id),
+                callback=_result_callback,
+                error_callback=_error_callback,
+            )
+        pool.close()
+        pool.join()
 
-        q_photo_ids = ",".join(photo_ids)
-        flickr.photosets.reorderPhotos(photoset_id=album_id, photo_ids=q_photo_ids)
+    progress_bar.close()
+
+    logger.info("Reordering album...")
+    # get everything in the album and reorder it: tried with only passing the new
+    # uploads but weird result
+    album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
+    photos = sorted(album_photos, key=attrgetter("datetaken"))
+    photo_ids = list(map(attrgetter("id"), photos))
+
+    q_photo_ids = ",".join(photo_ids)
+    flickr.photosets.reorderPhotos(photoset_id=album_id, photo_ids=q_photo_ids)
+
+
+def _add_to_album_group(flickr, album_id, photo_uploaded_ids):
+    pass
 
 
 # to upload photos that are missing
