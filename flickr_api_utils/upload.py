@@ -697,6 +697,7 @@ def _set_date_posted(flickr, now_ts, photos_uploaded, parallel):
 
 
 def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
+    """Will add to album if album ID has been passed or new album created"""
     album_id = upload_options.album_id
     primary_photo_id = None
     if upload_options.is_create_album and not album_id:
