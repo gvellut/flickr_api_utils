@@ -709,9 +709,7 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
     if album_id:
         logger.info(f"Adding photos to album {album_id}...")
 
-        _add_to_album_one_by_one(
-            flickr, album_id, photo_uploaded_ids, primary_photo_id, parallel
-        )
+        _add_to_album_group(flickr, album_id, photo_uploaded_ids)
 
 
 def _add_to_album_one_by_one(
@@ -755,7 +753,28 @@ def _add_to_album_one_by_one(
 
 
 def _add_to_album_group(flickr, album_id, photo_uploaded_ids):
-    pass
+    # Get existing photos in the album
+    album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
+
+    # Find the primary photo
+    primary_photo_id = None
+    existing_photo_ids = []
+    for photo in album_photos:
+        existing_photo_ids.append(photo.id)
+        if photo.isprimary == "1" or photo.isprimary == 1:
+            primary_photo_id = photo.id
+            break
+
+    # Combine existing + new photo ids
+    all_photo_ids = existing_photo_ids + list(photo_uploaded_ids)
+
+    # Use editPhotos to add all new photos at once
+    q_photo_ids = ",".join(all_photo_ids)
+    flickr.photosets.editPhotos(
+        photoset_id=album_id,
+        primary_photo_id=primary_photo_id,
+        photo_ids=q_photo_ids,
+    )
 
 
 # to upload photos that are missing
