@@ -1,5 +1,4 @@
 from collections import namedtuple
-from collections.abc import Iterable
 from datetime import datetime
 from enum import Enum, auto
 from functools import partial
@@ -708,8 +707,10 @@ def _add_to_album(flickr, upload_options, photo_uploaded_ids, parallel):
 
     if album_id:
         logger.info(f"Adding photos to album {album_id}...")
-
         _add_to_album_group(flickr, album_id, photo_uploaded_ids)
+
+        logger.info("Reordering album...")
+        _reorder_album(flickr, album_id)
 
 
 def _add_to_album_one_by_one(
@@ -741,16 +742,6 @@ def _add_to_album_one_by_one(
 
     progress_bar.close()
 
-    logger.info("Reordering album...")
-    # get everything in the album and reorder it: tried with only passing the new
-    # uploads but weird result
-    album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
-    photos = sorted(album_photos, key=attrgetter("datetaken"))
-    photo_ids = list(map(attrgetter("id"), photos))
-
-    q_photo_ids = ",".join(photo_ids)
-    flickr.photosets.reorderPhotos(photoset_id=album_id, photo_ids=q_photo_ids)
-
 
 def _add_to_album_group(flickr, album_id, photo_uploaded_ids):
     # Get existing photos in the album
@@ -775,6 +766,17 @@ def _add_to_album_group(flickr, album_id, photo_uploaded_ids):
         primary_photo_id=primary_photo_id,
         photo_ids=q_photo_ids,
     )
+
+
+def _reorder_album(flickr, album_id):
+    # get everything in the album and reorder it: tried with only passing the new
+    # uploads but weird result
+    album_photos = retry(API_RETRIES, partial(get_photos, flickr, album_id))
+    photos = sorted(album_photos, key=attrgetter("datetaken"))
+    photo_ids = list(map(attrgetter("id"), photos))
+
+    q_photo_ids = ",".join(photo_ids)
+    flickr.photosets.reorderPhotos(photoset_id=album_id, photo_ids=q_photo_ids)
 
 
 # to upload photos that are missing
