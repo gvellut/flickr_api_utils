@@ -754,7 +754,6 @@ def _add_to_album_group(flickr, album_id, photo_uploaded_ids):
         existing_photo_ids.append(photo.id)
         if photo.isprimary == "1" or photo.isprimary == 1:
             primary_photo_id = photo.id
-            break
 
     # Combine existing + new photo ids
     all_photo_ids = existing_photo_ids + list(photo_uploaded_ids)
