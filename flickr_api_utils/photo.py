@@ -242,10 +242,14 @@ SORT_PARAMS = [
     help="Tags to remove from photos",
     multiple=True,
 )
+# TODO make it a single tag with : tags to remove + add so can also add tags + remove
+# tags independently
+# currently replace tag will take the place of remove tags but could be always tags
+# to add too
 @click.option(
     "--replace-tag",
     "replace_tags",
-    help="Tags to replace from photos (new tags only added photos with those tags)",
+    help="Tags to replace from photos (new tags only added to photos with those tags)",
     multiple=True,
 )
 @click.option(
@@ -394,7 +398,10 @@ def _process_photo(
     logger.info(f"Processing {image.id} [{image.title}] ...")
 
     # Title replacement
-    if find_title and re.search(find_title, image.title):
+    if find_title:
+        if not re.search(find_title, image.title):
+            return
+
         if replace_title:
             title, n = re.subn(find_title, replace_title, image.title)
             if n:
