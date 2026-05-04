@@ -221,15 +221,15 @@ def reorder_photos(album):
 @album.command("remove-photos", cls=CatchAllExceptionsCommand)
 @click.argument("album")
 @click.option(
-    "--start-id",
+    "--start-photo",
     help="Photo ID or URL to start removing from (inclusive)",
 )
 @click.option(
-    "--end-id",
+    "--end-photo",
     help="Photo ID or URL to end removing at (inclusive)",
 )
 @click.option("--yes", is_flag=True, help="Skip confirmation")
-def remove_photos(album, start_id, end_id, yes):
+def remove_photos(album, start_photo, end_photo, yes):
     """Remove photos from an album.
 
     ALBUM can be an album ID or URL.
@@ -237,10 +237,11 @@ def remove_photos(album, start_id, end_id, yes):
     flickr = auth_flickr()
     album_id = extract_album_id(album)
 
-    if start_id:
-        start_id = extract_photo_id(start_id)
-    if end_id:
-        end_id = extract_photo_id(end_id)
+    start_id = end_id = None
+    if start_photo:
+        start_id = extract_photo_id(start_photo)
+    if end_photo:
+        end_id = extract_photo_id(end_photo)
 
     images = get_photos(flickr, album_id)
 

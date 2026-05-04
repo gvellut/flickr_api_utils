@@ -305,10 +305,6 @@ def find_replace(
         )
 
     # Validate title replacement options
-    if find_title and not replace_title:
-        raise click.ClickException(
-            "--replace-title is required when --find-title is specified"
-        )
     if replace_title and not find_title:
         raise click.ClickException(
             "--find-title is required when --replace-title is specified"
